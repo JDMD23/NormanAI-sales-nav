@@ -3,7 +3,7 @@
   "crmCoreConfigPath": "../NormanAI-crm-core/config/crm-core.json",
   "propertyMap": {
     "company": "Company",
-    "linkedinUrl": "LinkedIn",
+    "linkedinUrl": "Company Linkedin",
     "status": "Status",
     "workplacePoc": "Workplace POC",
     "connectivity": "Connectivity",
