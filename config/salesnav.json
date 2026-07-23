@@ -7,6 +7,7 @@
     "status": "Status",
     "workplacePoc": "Workplace POC",
     "connectivity": "Connectivity",
+    "latestAngle": "Latest Angle",
     "warmPathCheckedAt": "Warm Path Checked At",
     "needWarmPathSync": "Need Warm Path Sync"
   },
@@ -19,6 +20,6 @@
     "Top Pursuit": 7,
     "Prospect": 14
   },
-  "schemaReady": false,
-  "_note": "schemaReady flips true after the four Warm Path properties are created on the CRM Core DB (spec §6). propertyMap names for company/linkedinUrl/status must be verified against config/crm-core.json propertyMap before first write."
+  "schemaReady": true,
+  "_note": "Five Warm Path properties verified on the CRM Core DB 2026-07-23 (created via Codex, types read back by Claude Code)."
 }
