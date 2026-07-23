@@ -1,0 +1,12 @@
+{
+  "salesnav": {
+    "minNavigationWaitSeconds": 5.0,
+    "maxNavigationJitterSeconds": 4.0,
+    "betweenCompaniesMinSeconds": 7.0,
+    "betweenCompaniesJitterSeconds": 5.0,
+    "betweenLeadPagesMinSeconds": 4.0,
+    "betweenLeadPagesJitterSeconds": 4.0,
+    "batchLimit": 8,
+    "dailyCompanyCap": 25
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "personas": [
+    {
+      "key": "ceo",
+      "label": "CEO",
+      "priority": 1,
+      "titleSynonyms": ["chief executive officer", "ceo", "co-ceo"]
+    },
+    {
+      "key": "cofounder",
+      "label": "Cofounder",
+      "priority": 2,
+      "titleSynonyms": ["co-founder", "cofounder", "founder", "founding"]
+    },
+    {
+      "key": "head_finance",
+      "label": "Head of Finance",
+      "priority": 3,
+      "titleSynonyms": ["cfo", "chief financial officer", "head of finance", "vp finance", "vp of finance", "finance director", "controller"]
+    },
+    {
+      "key": "head_operations",
+      "label": "Head of Operations",
+      "priority": 4,
+      "titleSynonyms": ["coo", "chief operating officer", "head of operations", "vp operations", "vp of operations", "head of workplace", "workplace experience", "office manager", "head of real estate", "director of real estate", "chief of staff"]
+    },
+    {
+      "key": "head_talent",
+      "label": "Head of Talent",
+      "priority": 5,
+      "titleSynonyms": ["chief people officer", "cpo", "head of talent", "head of people", "vp people", "vp of people", "vp talent", "head of hr", "chro", "people operations"]
+    }
+  ],
+  "maxLeadPagesPerPersona": 3
+}
