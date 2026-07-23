@@ -1,6 +1,316 @@
 {
-  "_doc": "JD's connection-strength registry. Scanner reads this every run. inner = gold connects, paths via them float to top of Connectivity with a star. skip = never surface. Anyone not listed = neutral (ranked below inner, above skip; surfaced once in digest for rating). Frequency across companies is a tiebreaker within a tier only.",
-  "inner": [],
+  "_doc": "JD's connection-strength registry (seeded 2026-07-23, 73 profiles = main working relationship tree). Scanner reads this every run. core = the 'very strong easy ones' subset (JD flags over time; ranks above inner). inner = gold connects, starred, top of Connectivity. skip = never surface. Unlisted = neutral, surfaced once for rating. needsNameResolution = ambiguous vanity slug; resolve display name from profile on next live session. Frequency across companies = tiebreaker within tier only.",
+  "core": [],
+  "inner": [
+    {
+      "url": "https://www.linkedin.com/in/mila-g-9652a9233/",
+      "name": "Mila G.",
+      "needsNameResolution": true
+    },
+    {
+      "url": "https://www.linkedin.com/in/sofia-palumbo-848924207/",
+      "name": "Sofia Palumbo"
+    },
+    {
+      "url": "https://www.linkedin.com/in/miraa-shukla/",
+      "name": "Miraa Shukla"
+    },
+    {
+      "url": "https://www.linkedin.com/in/chris-zarou-1a0910232/",
+      "name": "Chris Zarou"
+    },
+    {
+      "url": "https://www.linkedin.com/in/cristina-gavin/",
+      "name": "Cristina Gavin"
+    },
+    {
+      "url": "https://www.linkedin.com/in/jerry-yao/",
+      "name": "Jerry Yao"
+    },
+    {
+      "url": "https://www.linkedin.com/in/sean-nguyen-74350b26/",
+      "name": "Sean Nguyen"
+    },
+    {
+      "url": "https://www.linkedin.com/in/coco123/",
+      "needsNameResolution": true
+    },
+    {
+      "url": "https://www.linkedin.com/in/elianaberger/",
+      "name": "Eliana Berger"
+    },
+    {
+      "url": "https://www.linkedin.com/in/kirsten-kiki-c-242929112/",
+      "name": "Kirsten (Kiki) C.",
+      "needsNameResolution": true
+    },
+    {
+      "url": "https://www.linkedin.com/in/caitlin-collamore/",
+      "name": "Caitlin Collamore"
+    },
+    {
+      "url": "https://www.linkedin.com/in/nickzhao/",
+      "name": "Nick Zhao"
+    },
+    {
+      "url": "https://www.linkedin.com/in/zachgarman/",
+      "name": "Zach Garman"
+    },
+    {
+      "url": "https://www.linkedin.com/in/zaid-shtayyeh/",
+      "name": "Zaid Shtayyeh"
+    },
+    {
+      "url": "https://www.linkedin.com/in/sydneytrann/",
+      "name": "Sydney Tran"
+    },
+    {
+      "url": "https://www.linkedin.com/in/-christina-wang/",
+      "name": "Christina Wang"
+    },
+    {
+      "url": "https://www.linkedin.com/in/erin-scanlon-a91ab0/",
+      "name": "Erin Scanlon"
+    },
+    {
+      "url": "https://www.linkedin.com/in/humna-saad12345/",
+      "name": "Humna Saad"
+    },
+    {
+      "url": "https://www.linkedin.com/in/jackie-randell/",
+      "name": "Jackie Randell"
+    },
+    {
+      "url": "https://www.linkedin.com/in/sophia-garibaldi-3b901b134/",
+      "name": "Sophia Garibaldi"
+    },
+    {
+      "url": "https://www.linkedin.com/in/ruchitag/",
+      "name": "Ruchita G.",
+      "needsNameResolution": true
+    },
+    {
+      "url": "https://www.linkedin.com/in/brandon-beckhardt/",
+      "name": "Brandon Beckhardt"
+    },
+    {
+      "url": "https://www.linkedin.com/in/brian-scott-cfa-82a85662/",
+      "name": "Brian Scott"
+    },
+    {
+      "url": "https://www.linkedin.com/in/jaclynmack/",
+      "name": "Jaclyn Mack"
+    },
+    {
+      "url": "https://www.linkedin.com/in/nicole-hedley-a7848a44/",
+      "name": "Nicole Hedley"
+    },
+    {
+      "url": "https://www.linkedin.com/in/chris-hedley-46a09671/",
+      "name": "Chris Hedley"
+    },
+    {
+      "url": "https://www.linkedin.com/in/julia-schottenstein-25424318/",
+      "name": "Julia Schottenstein"
+    },
+    {
+      "url": "https://www.linkedin.com/in/lisafischoff/",
+      "name": "Lisa Fischoff"
+    },
+    {
+      "url": "https://www.linkedin.com/in/jesswxu/",
+      "name": "Jessica Xu"
+    },
+    {
+      "url": "https://www.linkedin.com/in/jessicaou/",
+      "name": "Jessica Ou"
+    },
+    {
+      "url": "https://www.linkedin.com/in/henry-bartis-793553165/",
+      "name": "Henry Bartis"
+    },
+    {
+      "url": "https://www.linkedin.com/in/julia-lauer-423834137/",
+      "name": "Julia Lauer"
+    },
+    {
+      "url": "https://www.linkedin.com/in/gabestengel/",
+      "name": "Gabe Stengel"
+    },
+    {
+      "url": "https://www.linkedin.com/in/simonebenscher/",
+      "name": "Simone Benscher"
+    },
+    {
+      "url": "https://www.linkedin.com/in/edward-larmann-b27467a/",
+      "name": "Edward Larmann"
+    },
+    {
+      "url": "https://www.linkedin.com/in/max-segall-4794a436/",
+      "name": "Max Segall"
+    },
+    {
+      "url": "https://www.linkedin.com/in/kay-n-525762/",
+      "name": "Kay N.",
+      "needsNameResolution": true
+    },
+    {
+      "url": "https://www.linkedin.com/in/amy-chen-81078163/",
+      "name": "Amy Chen"
+    },
+    {
+      "url": "https://www.linkedin.com/in/kaitlynglancy/",
+      "name": "Kaitlyn Glancy"
+    },
+    {
+      "url": "https://www.linkedin.com/in/sidv33/",
+      "needsNameResolution": true
+    },
+    {
+      "url": "https://www.linkedin.com/in/caitlin-klein-37618636/",
+      "name": "Caitlin Klein"
+    },
+    {
+      "url": "https://www.linkedin.com/in/tess-liberman/",
+      "name": "Tess Liberman"
+    },
+    {
+      "url": "https://www.linkedin.com/in/jonathan-killeen-45a85b77/",
+      "name": "Jonathan Killeen"
+    },
+    {
+      "url": "https://www.linkedin.com/in/david-conover-6317155/",
+      "name": "David Conover"
+    },
+    {
+      "url": "https://www.linkedin.com/in/andrea-lambert-44701a6/",
+      "name": "Andrea Lambert"
+    },
+    {
+      "url": "https://www.linkedin.com/in/gilfeig/",
+      "name": "Gil Feig"
+    },
+    {
+      "url": "https://www.linkedin.com/in/shensiding/",
+      "name": "Shensi Ding"
+    },
+    {
+      "url": "https://www.linkedin.com/in/alexia-cohade/",
+      "name": "Alexia Cohade"
+    },
+    {
+      "url": "https://www.linkedin.com/in/alisawyer/",
+      "name": "Ali Sawyer"
+    },
+    {
+      "url": "https://www.linkedin.com/in/michael-mccormack-199b4086/",
+      "name": "Michael McCormack"
+    },
+    {
+      "url": "https://www.linkedin.com/in/charlie-howe-a36a5b88/",
+      "name": "Charlie Howe"
+    },
+    {
+      "url": "https://www.linkedin.com/in/benfriedland/",
+      "name": "Ben Friedland"
+    },
+    {
+      "url": "https://www.linkedin.com/in/shannon-spitzfaden-959701a2/",
+      "name": "Shannon Spitzfaden"
+    },
+    {
+      "url": "https://www.linkedin.com/in/erin-spitzfaden-35598bb0/",
+      "name": "Erin Spitzfaden"
+    },
+    {
+      "url": "https://www.linkedin.com/in/joseph-costantino-3a29a350/",
+      "name": "Joseph Costantino"
+    },
+    {
+      "url": "https://www.linkedin.com/in/kevin-reda-47a35a49/",
+      "name": "Kevin Reda"
+    },
+    {
+      "url": "https://www.linkedin.com/in/courtney-street-15654450/",
+      "name": "Courtney Street"
+    },
+    {
+      "url": "https://www.linkedin.com/in/jon-cohen-b62ab54a/",
+      "name": "Jon Cohen"
+    },
+    {
+      "url": "https://www.linkedin.com/in/patrick-maclellan-610b092b/",
+      "name": "Patrick MacLellan"
+    },
+    {
+      "url": "https://www.linkedin.com/in/domenick-d-apice-54b11b23/",
+      "name": "Domenick D'Apice"
+    },
+    {
+      "url": "https://www.linkedin.com/in/jkopser/",
+      "needsNameResolution": true
+    },
+    {
+      "url": "https://www.linkedin.com/in/jason-resha-4743653b/",
+      "name": "Jason Resha"
+    },
+    {
+      "url": "https://www.linkedin.com/in/keith-donofrio-2b411552/",
+      "name": "Keith D'Onofrio"
+    },
+    {
+      "url": "https://www.linkedin.com/in/gdziegler/",
+      "needsNameResolution": true
+    },
+    {
+      "url": "https://www.linkedin.com/in/jimmy-whelan-108a1117/",
+      "name": "Jimmy Whelan"
+    },
+    {
+      "url": "https://www.linkedin.com/in/robert-rosendorf-cpa-38011222/",
+      "name": "Robert Rosendorf"
+    },
+    {
+      "url": "https://www.linkedin.com/in/danielle-bergman-5709b253/",
+      "name": "Danielle Bergman"
+    },
+    {
+      "url": "https://www.linkedin.com/in/peter-falcone-1586971a/",
+      "name": "Peter Falcone"
+    },
+    {
+      "url": "https://www.linkedin.com/in/marc-scasino/",
+      "name": "Marc Scasino"
+    },
+    {
+      "url": "https://www.linkedin.com/in/nick-d-apice-66b7a941/",
+      "name": "Nick D'Apice"
+    },
+    {
+      "url": "https://www.linkedin.com/in/matthew-peace-b6872a55/",
+      "name": "Matthew Peace"
+    },
+    {
+      "url": "https://www.linkedin.com/in/michael-romano-79539760/",
+      "name": "Michael Romano"
+    },
+    {
+      "url": "https://www.linkedin.com/in/brian-bramswig-79b59127/",
+      "name": "Brian Bramswig"
+    }
+  ],
   "skip": [],
-  "pendingRating": []
+  "pendingRating": [
+    "Zach Goldstein (Operator Partners)",
+    "Brandon Wagoner (SpaceX)",
+    "dwayne nonales (Sequence Holdings)",
+    "Joe Carbonaro (Parasol)",
+    "Trevor Clark (Camber)",
+    "Stu Libby (InSite Health)",
+    "Malte Kosub (Parloa)",
+    "Tom Malloy (Norm Ai)",
+    "Celeste Candela (Insmed)",
+    "Troy Steckenrider (TKCEC)",
+    "Lauren Nemeth (Shopify)"
+  ]
 }
