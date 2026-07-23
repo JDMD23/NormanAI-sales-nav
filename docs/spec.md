@@ -113,6 +113,8 @@ Append-preserving (`active` flag, never delete): `first_seen` answers "when did 
 |----------|------|--------------|
 | `Workplace POC` | rich_text | JD (display) |
 | `Connectivity` | rich_text | JD (display) |
+| `Angles` | rich_text | JD — up to 3 typed lines (Funding / People / Product / Expansion), strongest first |
+| `People Moves` | rich_text | JD — hires/promotions/departures feed, `HIRE ·` / `PROMOTED ·` / `LEFT ·` prefixes; promotions and departures come from scan-to-scan diffs |
 | `Warm Path Checked At` | date | machine |
 | `Need Warm Path Sync` | checkbox | machine (queue) |
 

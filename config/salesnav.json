@@ -7,7 +7,8 @@
     "status": "Status",
     "workplacePoc": "Workplace POC",
     "connectivity": "Connectivity",
-    "latestAngle": "Latest Angle",
+    "angles": "Angles",
+    "peopleMoves": "People Moves",
     "warmPathCheckedAt": "Warm Path Checked At",
     "needWarmPathSync": "Need Warm Path Sync"
   },
