@@ -1,67 +1,93 @@
 # Sales Nav Warm Path Engine — system brief
 
 Owner: JD. Engineer: Claude Code. Operator (downstream consumer): Norman.
-Date: 2026-07-23.
+Date: 2026-07-23 (rev 2 — post-brainstorm).
 
 ## 1. What JD asked for (source of truth)
 
-> "Pull companies up, look at certain insights… I have personas set up that will tell me who I am connected to that is also connected or shares a connection with my certain persona. I want to write that to Notion, to the company profile — 'you know so-and-so who's connected to the head of talent, head of operations, head of finance, CEO, cofounder.' I want this to be some sort of angler… the system running, mapping out relationships and contacts forming."
+> "Any company tagged Prospect or Top Pursuit in my Notion CRM Core pipeline should automatically be added to Navigator as a company on some sort of list… have a job running that clicks a company — the main page has About, Relationship Explorer, Relationship Map, Growth Insights… the personas say Workplace POC: head of people, office manager, founder, COO… click any mutual connections to these people in the persona, and tell me who I'm connected with that's connected to those people. I'm trying to find angles on connectivity — a warm email, or reach out to a good connection for an introduction. Account alerts posts recent news about the company that could also be an angle for a cold email."
 
-Decisions locked in the same exchange:
+Readout format (JD, rev 2): two display properties on the company row —
+**Workplace POC** listing the persona people one per line ("easy to read, not one
+long sentence"), and **Connectivity** mapping each target to who JD knows:
+"the CEO is X, and A and B are connected to him." JD eyeballs it and judges
+the angle.
 
-- **Ingest:** browser scrape of JD's logged-in Sales Nav session (same mechanism as crm-core's LinkedIn lane: AppleScript → JavaScript in real Chrome).
-- **Destination:** Norman CRM Core Notion DB (`3a33930e-64f4-8002-ac6b-f5f99d632099`) — write to the existing company profile, not a new DB.
-- **Apollo:** helper only — once a persona target is identified, pull their email. Phase 2.
-- The system lives against Sales Navigator; it is a standing loop, not a one-shot.
+Decisions locked:
 
-## 2. Objects
+- **Ingest:** browser scrape of JD's logged-in Chrome (AppleScript, same mechanism as crm-core's LinkedIn lane).
+- **Personas:** a single Sales Nav persona, **Workplace POC**, bundling decision-maker titles (`config/personas.json`; verify exact SN setup during the capture session).
+- **Destination:** company page in Norman CRM Core Notion DB. People stay company-scoped in v1; the SQLite store keeps the people graph so a dedicated People DB can be promoted in v2 without rework.
+- **Apollo:** helper only — email pull for confirmed targets. Later phase.
+- Standing loop, JD-triggered; scheduling only with JD's explicit approval.
+
+## 2. Capabilities & phases
+
+| Phase | Capability | Notes |
+|-------|-----------|-------|
+| 1 | **List sync** — Notion shelves → SN account lists | Top Pursuit → "Norman — Top Pursuits", Prospect → "Norman — Prospects". Saving accounts is what turns on SN's own alert engine, feeding phase 2 cheaply. |
+| 1 | **Warm path mapping** — persona targets + mutual connections → Notion writeback | The core. Includes intro-node ranking. |
+| 2 | **Angles** — account alerts (news, hires, funding) harvested from the SN feed/list alert views | A few page visits cover the whole portfolio because of list sync. Written as angle entries; input for Norman's outreach drafting. |
+| 2 | **Digest** — per run: "N new warm paths, M new angles, who to ask for intros this week" | Likely the daily-use surface. |
+| 3 (parked) | **Growth insights** — headcount distribution, new hires from SN growth tab | Field-ownership conflict: crm-core's LinkedIn lane owns headcount fields. Decide then: new SN-specific fields, or sales-nav feeds the existing lane. Do not double-own fields. |
+
+## 3. Objects
 
 | Object | Meaning |
 |--------|---------|
-| **Company** | A Norman CRM Core row (Notion page). Join key: Notion page ID + LinkedIn company URL. |
+| **Company** | A Norman CRM Core row. Join key: Notion page ID + LinkedIn company URL. |
 | **SN account** | The company's Sales Navigator account page. |
-| **Persona target** | A person at the company matching one of JD's saved SN personas. |
-| **Warm path** | JD → (shared connection) → persona target. Degree 1 means JD knows the target directly (path is trivial). Degree 2 means one hop: the shared connection is the angle. |
-| **Delta** | A change between scans: new persona target (hire), new warm path (relationship formed), path lost. |
+| **Persona target** | Person at the company matching Workplace POC. |
+| **Warm path** | JD → (mutual connection) → target. Degree 1: JD knows the target. Degree 2: the mutual is the angle. Degree 3: target recorded, "no path yet" — watch for one to form. |
+| **Intro node** | A 1st-degree JD connection ranked by how many targets/companies they unlock. Mutual with three POCs across two Top Pursuits = highest-value ask. |
+| **Angle** | An account alert worth writing about (funding, leadership hire, headcount jump, news). |
+| **Delta** | Change between scans: new target (hire), new path (relationship formed), path lost, new angle. |
 
-## 3. Personas (config/personas.json)
+## 4. Pipeline (phase 1)
 
-JD's saved Sales Nav personas, priority-ordered: CEO, Cofounder, Head of Finance, Head of Operations, Head of Talent. Config carries title synonyms per persona so parsing can classify when SN's persona chip isn't readable on a given surface. Editing the config is the only step needed to add a persona.
-
-## 4. Pipeline stages
+```text
+Select (Notion shelves) → List sync (SN) → Account scan (Relationship Explorer personas)
+  → Mutual connections (2nd-degree targets) → Writeback (Notion) → Re-scan loop
+```
 
 ### 4.1 Select
-Query Norman CRM Core for candidates:
-- `Need Warm Path Sync` checkbox ON (work queue, Need-* discipline), OR
-- `--shelf` run over Status ∈ {Prospect, Top Pursuit, Tracking, Engaged} with a staleness cutoff (`Warm Path Checked At` older than cadence).
-Batch cap from pace config (default 8 companies/run). Opt-in only — never the whole pipeline.
+Companies with Status ∈ {Top Pursuit, Prospect} (JD-only shelves — read, never written), plus `Need Warm Path Sync` ON as a manual queue. Batch caps from `config/pace.json`.
 
-### 4.2 Resolve SN account
-Input: company LinkedIn URL (crm-core already owns this field). Navigate Sales Nav company lookup, confirm identity (name/domain corroboration — website-first rule applies, search is a lead not an answer). Persist `sn_account_url` in state DB so resolve runs once per company.
+### 4.2 List sync
+Ensure each selected company is saved to its shelf's SN list (`salesNavLists` in config). Resolve company → SN account via LinkedIn URL, corroborate identity (website-first rule), save. Companies leaving the shelves get removed from lists on a later pass (not v1-blocking).
 
-### 4.3 Persona scan
-On the SN account page, read the persona/people module: for each persona, the matching leads — name, title, persona label, connection degree (1st/2nd/3rd), lead URL, TeamLink flag if shown.
+### 4.3 Account scan
+On the account page, read the Relationship Explorer / persona module for Workplace POC matches: name, title, degree, lead URL.
 
-### 4.4 Path map
-For each 2nd-degree persona target (bounded: top N per persona, default 3): open lead page, read the **shared connections** module — who JD knows that is connected to the target. Persist each as a warm path. 1st-degree targets are themselves the path. 3rd-degree targets are recorded as targets with no path (they become "watch for a path to form").
+### 4.4 Mutual connections
+For 2nd-degree targets (cap: `maxLeadPagesPerPersona`), open the target's mutual-connections view; record each mutual as a warm path.
 
-### 4.5 Notion writeback
-Company page updates (properties to be added to the crm-core DB — see § 6):
+### 4.5 Writeback
+Company page, four properties (§6):
 
-| Property | Type | Content |
-|----------|------|---------|
-| `Warm Path Summary` | rich_text | e.g. `CEO: A. Chen (1st) · Head of Talent: R. Patel (2nd via M. Ross) · +2 more` |
-| `Warm Paths Count` | number | Active paths (degree 1 counts as 1) |
-| `Warm Path Personas` | multi_select | Personas with ≥1 covered target |
-| `Warm Path Checked At` | date | Scan stamp |
-| `Need Warm Path Sync` | checkbox | Work queue; OFF on success, ON on retry, OFF on park |
+`Workplace POC` (rich_text, one per line):
+```
+Jane Chen — CEO (1st)
+Marc Roth — COO (2nd)
+Ana Diaz — Head of People (2nd)
+Tom Ellis — Office Manager (3rd)
+```
 
-Page body: a `Warm Paths` heading + table (target, title, persona, degree, via, SN link, first seen / last seen), replaced idempotently between managed markers. Deltas since last scan listed on top ("NEW: path to Head of Finance via K. Wong").
+`Connectivity` (rich_text, per-target path map):
+```
+Jane Chen (CEO): you're connected
+Marc Roth (COO): via Mike Ross, Sarah Lee
+Ana Diaz (Head of People): via Dan Katz
+Tom Ellis (Office Manager): no path yet
+```
 
-**Never writes Status. Never touches JD-only shelves. A failed scan writes nothing** — no zeroing, no clearing of prior paths (Unknown ≠ 0).
+Plus `Warm Path Checked At` (date) and `Need Warm Path Sync` (checkbox, lane queue).
+Page body: managed `Warm Paths` section — full table with SN links, first-seen dates, deltas on top.
+
+**Never writes Status. A failed scan writes nothing — never blanks previously written paths (Unknown ≠ 0).**
 
 ### 4.6 Re-scan loop
-Cadence per shelf (config): Top Pursuit 7d, Engaged 7d, Prospect 14d, Tracking 30d. Runner is manual or launchd-scheduled later — **scheduling is JD's call, never auto-enabled** (crm-core cron red line applies).
+Cadence: Top Pursuit 7d, Prospect 14d (`rescanCadenceDays`). Deltas surface in the run digest (phase 2) and page-body section.
 
 ## 5. State (state/salesnav.db, SQLite, gitignored)
 
@@ -72,36 +98,40 @@ paths(id PK, target_id FK, via_name, via_sn_url, first_seen, last_seen, active)
 scans(id PK, company_id FK, at, outcome, note)
 ```
 
-History is append-preserving (`active` flag, never delete) so "contacts forming" is answerable: a path's `first_seen` is when the relationship became visible.
+Append-preserving (`active` flag, never delete): `first_seen` answers "when did this relationship become visible." Intro-node ranking is a query over `paths` grouped by `via_name`.
 
 ## 6. Notion schema additions (one-time, on Norman CRM Core DB)
 
-The five properties in § 4.5. Additive only; no existing property is modified. To be created via Notion API with JD's go-ahead at build time, then mirrored into `config/salesnav.json` propertyMap (same pattern as `config/crm-core.json`).
+| Property | Type | Who reads it |
+|----------|------|--------------|
+| `Workplace POC` | rich_text | JD (display) |
+| `Connectivity` | rich_text | JD (display) |
+| `Warm Path Checked At` | date | machine |
+| `Need Warm Path Sync` | checkbox | machine (queue) |
+
+Additive only. Created via Notion API with JD's go-ahead, then `schemaReady: true`.
 
 ## 7. Compliance & pacing posture
 
-- JD's own logged-in session, JD's paid Sales Nav seat, JD-triggered runs, human-scale volume (default caps: 8 companies/run, ≤3 lead pages per persona, pauses 5–9s nav / 7–12s between companies with jitter — `config/pace.json`).
-- Reads only surfaces Sales Nav itself shows JD. No connection requests, no InMail, no messaging — **nothing outbound, ever, from this repo.**
-- Captcha / auth-wall / logged-out detection → lane outcome **retry**, stop the run immediately (same as crm-core LinkedIn lane).
+- JD's own logged-in session and paid SN seat; JD-triggered runs; human pacing with jitter (`config/pace.json`); low caps.
+- Reads only what SN shows JD. List-save clicks are the only UI writes.
+- **Nothing outbound, ever, from this repo** — no connection requests, InMail, or messages. Angle identification only; drafts live with Norman.
+- Captcha / auth wall / logged-out → outcome **retry**, run stops immediately.
 
-## 8. Apollo (phase 2)
-
-When a persona target is confirmed, `apollo people/match` (name + company domain + title) → work email → written to the Warm Paths page-body table only. Credit-gated with a per-run cap. No sequences, no sends.
-
-## 9. Build plan
+## 8. Build plan
 
 | # | Step | Needs |
 |---|------|-------|
-| 1 | Scaffold: spec, configs, state store, pacing, capture tool | — (this commit) |
-| 2 | Live capture session: JD logged into Sales Nav, run `sn_capture.py` on 2–3 known accounts + lead pages | JD at the machine, ~15 min |
-| 3 | Parsers from captures: account resolve, persona module, shared-connections module | Step 2 output |
-| 4 | Notion writeback + schema add | JD go-ahead on 5 new properties |
-| 5 | Pilot: 5 Top Pursuit companies end-to-end, JD reviews Warm Paths sections | Steps 3–4 |
-| 6 | Re-scan loop + 48h-digest delta line; Apollo email pull | Pilot sign-off |
+| 1 | Scaffold (done, rev 1) | — |
+| 2 | Live capture session: account page w/ Relationship Explorer, a 2nd-degree lead's mutual connections view, list-save flow, list/alerts view | JD logged into SN, ~15 min |
+| 3 | Parsers from captures | Step 2 |
+| 4 | Notion writeback + 4 properties | JD go-ahead |
+| 5 | Pilot: 5 Top Pursuit companies end-to-end; JD reviews the two columns | 3–4 |
+| 6 | List sync automation + re-scan loop | Pilot sign-off |
+| 7 | Phase 2: angles + digest; Apollo email pull | 6 |
 
-## 10. Non-goals
+## 9. Non-goals
 
-- No outbound (messages, connection requests, InMail) — angle identification only.
-- No new CRM. Notion company page remains the single pane.
-- No full-pipeline crawls. Opt-in shelves and Need-queue only.
-- No scraping beyond what JD's session displays (no profile deep-dumps, no exports of connection lists wholesale).
+- No outbound. No new CRM. No full-pipeline crawls (Top Pursuit + Prospect + explicit queue only).
+- No scraping beyond what JD's session displays; no wholesale connection exports.
+- No headcount field writes until the phase-3 ownership decision (crm-core LinkedIn lane owns those today).

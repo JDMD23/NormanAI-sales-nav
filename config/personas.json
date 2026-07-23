@@ -1,35 +1,22 @@
 {
   "personas": [
     {
-      "key": "ceo",
-      "label": "CEO",
+      "key": "workplace_poc",
+      "label": "Workplace POC",
       "priority": 1,
-      "titleSynonyms": ["chief executive officer", "ceo", "co-ceo"]
-    },
-    {
-      "key": "cofounder",
-      "label": "Cofounder",
-      "priority": 2,
-      "titleSynonyms": ["co-founder", "cofounder", "founder", "founding"]
-    },
-    {
-      "key": "head_finance",
-      "label": "Head of Finance",
-      "priority": 3,
-      "titleSynonyms": ["cfo", "chief financial officer", "head of finance", "vp finance", "vp of finance", "finance director", "controller"]
-    },
-    {
-      "key": "head_operations",
-      "label": "Head of Operations",
-      "priority": 4,
-      "titleSynonyms": ["coo", "chief operating officer", "head of operations", "vp operations", "vp of operations", "head of workplace", "workplace experience", "office manager", "head of real estate", "director of real estate", "chief of staff"]
-    },
-    {
-      "key": "head_talent",
-      "label": "Head of Talent",
-      "priority": 5,
-      "titleSynonyms": ["chief people officer", "cpo", "head of talent", "head of people", "vp people", "vp of people", "vp talent", "head of hr", "chro", "people operations"]
+      "titleSynonyms": [
+        "ceo", "chief executive officer",
+        "founder", "co-founder", "cofounder", "founding",
+        "coo", "chief operating officer",
+        "head of people", "chief people officer", "vp people", "vp of people",
+        "head of talent", "vp talent", "chro", "people operations",
+        "office manager", "workplace experience", "head of workplace",
+        "chief of staff", "head of operations", "vp operations", "vp of operations",
+        "cfo", "chief financial officer", "head of finance", "vp finance",
+        "head of real estate", "director of real estate"
+      ]
     }
   ],
-  "maxLeadPagesPerPersona": 3
+  "_note": "Mirrors JD's Sales Navigator persona setup: a single 'Workplace POC' persona bundling decision-maker titles. Verify the SN persona name/coverage during the live capture session before parser work.",
+  "maxLeadPagesPerPersona": 4
 }

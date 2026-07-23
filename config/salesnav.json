@@ -5,20 +5,20 @@
     "company": "Company",
     "linkedinUrl": "LinkedIn",
     "status": "Status",
-    "warmPathSummary": "Warm Path Summary",
-    "warmPathsCount": "Warm Paths Count",
-    "warmPathPersonas": "Warm Path Personas",
+    "workplacePoc": "Workplace POC",
+    "connectivity": "Connectivity",
     "warmPathCheckedAt": "Warm Path Checked At",
     "needWarmPathSync": "Need Warm Path Sync"
   },
   "pageBodyMarker": "Warm Paths",
-  "scanShelves": ["Prospect", "Top Pursuit", "Tracking", "Engaged"],
+  "salesNavLists": {
+    "Top Pursuit": "Norman — Top Pursuits",
+    "Prospect": "Norman — Prospects"
+  },
   "rescanCadenceDays": {
     "Top Pursuit": 7,
-    "Engaged": 7,
-    "Prospect": 14,
-    "Tracking": 30
+    "Prospect": 14
   },
   "schemaReady": false,
-  "_note": "schemaReady flips true after the five Warm Path properties are created on the CRM Core DB (spec §6). propertyMap names for company/linkedinUrl/status must be verified against config/crm-core.json propertyMap before first write."
+  "_note": "schemaReady flips true after the four Warm Path properties are created on the CRM Core DB (spec §6). propertyMap names for company/linkedinUrl/status must be verified against config/crm-core.json propertyMap before first write."
 }
