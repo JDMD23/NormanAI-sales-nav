@@ -1,0 +1,6 @@
+{
+  "_doc": "JD's connection-strength registry. Scanner reads this every run. inner = gold connects, paths via them float to top of Connectivity with a star. skip = never surface. Anyone not listed = neutral (ranked below inner, above skip; surfaced once in digest for rating). Frequency across companies is a tiebreaker within a tier only.",
+  "inner": [],
+  "skip": [],
+  "pendingRating": []
+}

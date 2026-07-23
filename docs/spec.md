@@ -27,8 +27,11 @@ Decisions locked:
 |-------|-----------|-------|
 | 1 | **List sync** — Notion shelves → SN account lists | Top Pursuit → "Norman — Top Pursuits", Prospect → "Norman — Prospects". Saving accounts is what turns on SN's own alert engine, feeding phase 2 cheaply. |
 | 1 | **Warm path mapping** — persona targets + mutual connections → Notion writeback | The core. Includes intro-node ranking. |
-| 2 | **Angles** — account alerts (news, hires, funding) harvested from the SN feed/list alert views | A few page visits cover the whole portfolio because of list sync. Written as angle entries; input for Norman's outreach drafting. |
-| 2 | **Digest** — per run: "N new warm paths, M new angles, who to ask for intros this week" | Likely the daily-use surface. |
+| 1 | **Connection registry** — JD-curated tiers (`config/connections.json`): inner circle ⭐ tops Connectivity lines; skip list suppressed; unrated surfaced once for rating | Replaces frequency-based leaderboard (JD 2026-07-23). Frequency = tiebreaker within tier only. |
+| 1 | **New-hire tripwire** — `NEW HIRE ·` prefix on recently-hired POCs; people-move alert triggers same-day rescan | 4/10 pilot companies had one. First-90-days window. |
+| 2 | **Angles** — account alerts (news, hires, funding) harvested from the SN feed/list alert views | Confirmed in (JD). e.g. Omni $120M Series C. Written as angle entries; input for Norman's outreach drafting. |
+| 2 | **Digest** — per run: "N new warm paths, M new angles, new connectors to rate" | Likely the daily-use surface. |
+| — (skipped) | Draft-the-intro-ask | JD declined 2026-07-23. |
 | 3 (parked) | **Growth insights** — headcount distribution, new hires from SN growth tab | Field-ownership conflict: crm-core's LinkedIn lane owns headcount fields. Decide then: new SN-specific fields, or sales-nav feeds the existing lane. Do not double-own fields. |
 
 ## 3. Objects
@@ -73,12 +76,16 @@ Ana Diaz — Head of People (2nd)
 Tom Ellis — Office Manager (3rd)
 ```
 
-`Connectivity` (rich_text, per-target path map):
+`Connectivity` (rich_text, per-target path map). Formatting rules (JD 2026-07-23):
+**every name is a clickable link** (target → SN lead URL; mutual → their profile URL),
+**always full names**, inner-circle mutuals starred and listed first, lines ordered
+by angle strength (1st-degree targets, then ⭐ paths, then rest; "no path yet"
+people stay out of the column — page body only). New hires prefixed `NEW HIRE ·`,
+fresh paths `NEW ·`:
 ```
 Jane Chen (CEO): you're connected
+NEW HIRE · Ana Diaz (Head of People): ⭐ via Dan Katz
 Marc Roth (COO): via Mike Ross, Sarah Lee
-Ana Diaz (Head of People): via Dan Katz
-Tom Ellis (Office Manager): no path yet
 ```
 
 Plus `Warm Path Checked At` (date) and `Need Warm Path Sync` (checkbox, lane queue).
