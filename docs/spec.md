@@ -76,7 +76,18 @@ Ana Diaz — Head of People (2nd)
 Tom Ellis — Office Manager (3rd)
 ```
 
-`Connectivity` (rich_text, per-target path map). Formatting rules (JD 2026-07-23):
+`Connectivity` (rich_text, per-target path map). Format v2 — names-first compact (JD 2026-07-23 evening):
+**every mutual is named — counts never replace names** (`+N` allowed only after ≥2 names,
+and flags the row `Need Warm Path Sync` for name resolution). Arrow shorthand, one line per target:
+```
+⭐ Nick Zhao — you're connected
+Dan Mishin ← ⭐Nick Zhao · ⭐Shensi Ding · ⭐Jon Cohen · Zach Goldstein
+Tara Neuman ← Mike Shebat · Marilynn Joyner · +1
+```
+Roster lines: `NEW · ⭐ Name · Title · deg [· ex-CBRE | · follows you]`. Each fact appears in
+exactly ONE field; long-form detail (companies, dates, watch list, cautions) lives in the managed
+page-body "Warm Paths" section. Scanner rule: expand every 2nd-degree target's mutuals fully by name
+(View-all navigation when the popover truncates). Original prose rules below kept for history:
 **every name is a clickable link** (target → SN lead URL; mutual → their profile URL),
 **always full names**, inner-circle mutuals starred and listed first, lines ordered
 by angle strength (1st-degree targets, then ⭐ paths, then rest; "no path yet"
