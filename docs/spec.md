@@ -76,7 +76,18 @@ Ana Diaz — Head of People (2nd)
 Tom Ellis — Office Manager (3rd)
 ```
 
-`Connectivity` (rich_text, per-target path map). Format v2 — names-first compact (JD 2026-07-23 evening):
+`Connectivity` (rich_text, per-target path map). Format v3 — STACKED BLOCKS (JD 2026-07-23 late):
+one block per target, never one long line. Line 1 = flags + name (linked, bold) + title + degree;
+line 2 = indented `    ↳ via` + every mutual by name; blank line between targets:
+```
+NEW · ⭐ Nick Zhao · Head of Finance · 1st
+    ↳ you're connected — go direct
+
+Dan Mishin · Founder & CEO · 2nd
+    ↳ via ⭐Nick Zhao · ⭐Shensi Ding · ⭐Jon Cohen · Zach Goldstein
+```
+Connectivity is self-sufficient (carries title + degree) so JD reads one column, not two.
+Format v2 rules below still hold — names always, counts never replace names:
 **every mutual is named — counts never replace names** (`+N` allowed only after ≥2 names,
 and flags the row `Need Warm Path Sync` for name resolution). Arrow shorthand, one line per target:
 ```
