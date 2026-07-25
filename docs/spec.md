@@ -269,3 +269,19 @@ Fixes:
 
 Lesson: a heuristic that is right 90% of the time is a *data-integrity* bug when
 its output is cached and reused.
+
+### 10.5 "No path" is an answer, not an unknown
+
+Two different situations produce an empty Connectivity, and conflating them
+breaks the loop in opposite directions:
+
+| | meaning | behaviour |
+|---|---|---|
+| `thin=True` | page never rendered, or we read the wrong company | **refuse** the write, keep existing data |
+| `thin=False` | page rendered; targets genuinely share no connections | **write it, clear the flag** |
+
+Getting this wrong the first way destroys data (§10.1). Getting it wrong the
+second way means every genuinely-path-less company is refused and re-queued on
+every pass — the loop never drains. `Need Warm Path Sync` means *needs another
+look*, not *has no path*; re-checking a confirmed no-path is the rescan
+cadence's job.

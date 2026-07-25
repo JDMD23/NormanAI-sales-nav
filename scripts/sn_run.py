@@ -193,7 +193,8 @@ def run_batch(args, token, cap: int):
         else:
             needs = sn_notion.write(row["page_id"], people,
                                     derive_angles(acct, people),
-                                    derive_moves(people), token=token)
+                                    derive_moves(people), token=token,
+                                    thin=bool(acct.get("thin")))
             if needs == "degraded":
                 degraded += 1
                 print("  REFUSED — thin scan would have erased existing paths; left intact")

@@ -153,18 +153,33 @@ def read_existing(page_id: str, token: str) -> str:
 
 def write(page_id: str, people: list[dict], angles: list[str],
           moves: list[str] | None = None, date: str = "2026-07-23",
-          token: str | None = None) -> bool | str:
-    """Returns needs_sync, or the string 'degraded' if the write was REFUSED
-    because it would have replaced real paths with none. Unknown != 0: a thin
-    scan must never blank verified data."""
+          token: str | None = None, thin: bool = False) -> bool | str:
+    """Returns needs_sync, or the string 'degraded' if the write was REFUSED.
+
+    Unknown != 0 — but only when it is genuinely *unknown*. Two different things
+    produce an empty Connectivity and conflating them is a bug either way:
+
+      thin=True   the page never rendered, or we read the wrong company. We do
+                  not know the answer. Refuse; keep whatever is already there.
+      thin=False  the page rendered fine and the targets genuinely have no shared
+                  connections. That IS the answer — write it and clear the flag.
+                  Otherwise the row is refused and re-queued on every loop pass,
+                  forever, and the loop never drains.
+    """
     tok = token or nc.load_token()
     poc, conn, needs = build_rows(people)
 
     new_txt = "".join(s["text"]["content"] for s in conn)
     if "No warm path found" in new_txt:
-        prev = read_existing(page_id, tok)
-        if "↳ via" in prev:
-            return "degraded"
+        if thin:
+            prev = read_existing(page_id, tok)
+            if "↳ via" in prev:
+                return "degraded"
+        else:
+            # A confirmed no-path is an ANSWER, not an open question. Leaving the
+            # flag on would re-queue this row on every loop pass and the loop
+            # would never drain. Re-checking later is the rescan cadence's job.
+            needs = False
     props = {
         PROPS["workplacePoc"]: {"rich_text": poc[:100]},
         PROPS["connectivity"]: {"rich_text": conn[:100]},
