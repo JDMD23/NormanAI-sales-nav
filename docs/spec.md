@@ -285,3 +285,28 @@ second way means every genuinely-path-less company is refused and re-queued on
 every pass — the loop never drains. `Need Warm Path Sync` means *needs another
 look*, not *has no path*; re-checking a confirmed no-path is the rescan
 cadence's job.
+
+### 10.6 The spin: progress is NEW rows, not writes
+
+The first real `--loop` run went 34 batches and reported "209 written". It had
+actually written the **same 6 rows 29 times** and parked the same 5 rows 34
+times — ~370 redundant Sales Nav requests before the zero-progress guard tripped.
+
+`--backfill` selects `needs_sync == True`. Two states survive a perfectly good
+scan and leave the flag on, so the queue refilled with the rows just processed:
+
+1. a target whose only mutuals were skip-listed → `no usable path`
+2. a parked row (ambiguous identity / no persona data) — parking never clears
+   the flag
+
+Fixes, both needed:
+- **`render_via`**: a path that exists only through skip-listed people returns
+  `needs_rescan=False`. Rescanning cannot change it — only JD re-rating someone
+  or a new connection forming can, and that is the rescan cadence's job.
+- **`run_loop`** keeps a `seen` set of page ids and excludes them from later
+  batches *in the same run*. This is the belt-and-braces guard: whatever future
+  reason leaves a row flagged, the loop can no longer chew it twice.
+
+The zero-progress guard was necessary but not sufficient — it only fires when a
+batch writes *nothing*, and this batch "wrote" six rows every pass. Measure
+progress in rows newly touched.

@@ -79,10 +79,19 @@ def run_loop(args, run_batch) -> int:
     """
     batch_no = 0
     totals = {"ok": 0, "flagged": 0, "parked": 0, "degraded": 0}
+    # Never touch the same row twice in one run. A row can legitimately remain
+    # flagged after a perfectly good scan (unresolved +N, no usable path), and
+    # parking does not clear the flag either — so without this the queue refills
+    # with the rows we just did. On 2026-07-23 that spun 34 batches over the same
+    # 11 rows: ~370 redundant Sales Nav requests before the zero-progress guard
+    # tripped. Progress is measured in NEW rows, not in writes.
+    seen: set[str] = set()
     while True:
         batch_no += 1
         print(f"\n{'='*52}\nBATCH {batch_no}\n{'='*52}", flush=True)
-        res = run_batch(args, cap=args.batch)
+        res = run_batch(args, cap=args.batch, exclude=seen)
+        if res is not None:
+            seen |= res["ids"]
         if res is None:
             print("\nstopped — auth wall")
             return 1
@@ -136,13 +145,13 @@ def main() -> int:
         print("NOTION_TOKEN not found."); return 2
 
     if args.loop:
-        return run_loop(args, lambda a, cap: run_batch(a, token, cap))
+        return run_loop(args, lambda a, cap, exclude: run_batch(a, token, cap, exclude))
     res = run_batch(args, token,
                     args.limit if args.limit is not None else pace.batch_limit())
     return 0 if res is not None else 1
 
 
-def run_batch(args, token, cap: int):
+def run_batch(args, token, cap: int, exclude: set | None = None):
     """One batch. Returns counts, or None if an auth wall stopped us.
 
     The queue is re-pulled from Notion every call, so --loop naturally picks up
@@ -158,6 +167,8 @@ def run_batch(args, token, cap: int):
 
     if args.min_fit is not None:
         rows = [r for r in rows if (r["fit"] or 0) >= args.min_fit]
+    if exclude:
+        rows = [r for r in rows if r["page_id"] not in exclude]
     rows = rows[:cap]
 
     print(f"{len(rows)} companies queued\n")
@@ -209,7 +220,8 @@ def run_batch(args, token, cap: int):
     print(f"\ndone — {ok} scanned, {flagged} need name resolution, "
           f"{parked} parked, {degraded} refused (would have erased data)")
     return {"ok": ok, "flagged": flagged, "parked": parked,
-            "degraded": degraded, "queued": len(rows)}
+            "degraded": degraded, "queued": len(rows),
+            "ids": {r["page_id"] for r in rows}}
 
 
 if __name__ == "__main__":

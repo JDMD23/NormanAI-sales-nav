@@ -83,7 +83,13 @@ def render_via(via: list[str]) -> tuple[str, bool]:
             continue
         kept.append(("⭐" + name) if t in ("core", "inner") else name)
     if not kept:
-        return ("no usable path" + (" — skip-listed mutuals removed" if dropped else ""), True)
+        # A path that exists only through skip-listed people is a definitive
+        # ANSWER: rescanning cannot change it, only JD re-rating someone or a new
+        # connection forming can. Flagging it re-queues the row on every loop
+        # pass forever (this burned ~370 redundant scans on 2026-07-23).
+        if dropped:
+            return ("no usable path — skip-listed mutuals removed", False)
+        return ("no usable path", True)
     # gold first, then the rest, order otherwise preserved
     kept.sort(key=lambda x: 0 if x.startswith("⭐") else 1)
     return ("via " + " · ".join(kept), False)
