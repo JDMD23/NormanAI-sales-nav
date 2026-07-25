@@ -310,3 +310,19 @@ Fixes, both needed:
 The zero-progress guard was necessary but not sufficient — it only fires when a
 batch writes *nothing*, and this batch "wrote" six rows every pass. Measure
 progress in rows newly touched.
+
+### 10.7 Identity, second correction: too strict is also a bug
+
+After §10.4 the guard swung the other way and parked an entire batch of 15. The
+cause: `_norm` collapses case and strips filler words, so name-identical
+candidates are the *common* case, not the exotic one — "Concourse" vs "The
+Concourse", "Scribe" vs "scribe", "Tetrix" vs "TETRIX". Two "exact" matches meant
+park, so most of the tail was unreachable.
+
+Tiebreak on **headcount from the search blurb**, which is what actually separates
+the operating company from a dormant shell — but only on a decisive margin:
+winner must have ≥10 employees AND ≥3× the runner-up. Below that margin it still
+parks (two similar-sized "Radial"s remain a human decision).
+
+Both failure directions cost real money: too loose scanned the wrong company and
+poisoned the cache; too strict stranded the tail. The margin is the knob.

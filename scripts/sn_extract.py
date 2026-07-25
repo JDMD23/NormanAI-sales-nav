@@ -13,6 +13,7 @@ mutual by name (the hover popover truncates at 2).
 from __future__ import annotations
 
 import json
+import re
 from urllib.parse import quote
 
 from lib import chrome, pace
@@ -160,6 +161,18 @@ def mutual_names(lead_id: str) -> list[str]:
     return _js(_JS_NAMES) or []
 
 
+def _employees(blurb: str) -> int | None:
+    """Headcount out of a search-result blurb ('… 158 employees on LinkedIn')."""
+    m = re.search(r"([\d,.]+)(K\+?)?\s*employees", blurb or "")
+    if not m:
+        return None
+    try:
+        n = float(m.group(1).replace(",", ""))
+    except ValueError:
+        return None
+    return int(n * 1000) if m.group(2) else int(n)
+
+
 def _norm(s: str) -> str:
     keep = "".join(c for c in s.casefold() if c.isalnum() or c == " ")
     drop = {"inc", "llc", "ltd", "co", "corp", "technologies", "technology",
@@ -183,7 +196,20 @@ def pick_match(name: str, hits: list[dict]) -> dict | None:
     if len(exact) == 1:
         return exact[0]
     if len(exact) > 1:
-        return None  # genuinely ambiguous (many "Radial"s) — needs a human
+        # Name-identical candidates are the common case, not the exotic one:
+        # "Concourse" vs "The Concourse", "Scribe" vs "scribe", "Gamma" vs
+        # "GAMMA". Parking all of these strands most of the tail. Break the tie
+        # on headcount, which is what actually distinguishes the operating
+        # company from a dormant shell — but only on a decisive margin, and only
+        # when the winner is big enough to be a real prospect.
+        sized = [(_employees(h.get("blurb", "")), h) for h in exact]
+        sized = [(n, h) for n, h in sized if n is not None]
+        if len(sized) >= 2:
+            sized.sort(key=lambda t: -t[0])
+            top, second = sized[0], sized[1]
+            if top[0] >= 10 and top[0] >= second[0] * 3:
+                return top[1]
+        return None  # genuinely ambiguous — needs a human
     # Prefix, not substring: "Sesame" must not match "Open Sesame AI" — leading
     # words change the entity. Trailing words usually don't ("Hex" / "Hex Inc").
     pre = [h for h in hits
