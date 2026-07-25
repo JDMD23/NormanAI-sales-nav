@@ -87,10 +87,26 @@ def search_company(name: str) -> list[dict]:
     return _js(_JS_SEARCH_RESULTS) or []
 
 
-_JS_SCROLL = "(()=>{window.scrollTo(0,900);return '1'})()"
+# Scroll to the Relationship Explorer heading itself rather than a fixed offset —
+# page furniture varies (Account IQ present or absent, banners, alert strips), so
+# a hard-coded 900px lands nowhere near it on some accounts and the lazy load
+# never fires. This was the cause of the 2026-07-23 data-loss regression.
+_JS_SCROLL = """
+(()=>{const h=[...document.querySelectorAll('h2,h3,div,span')]
+ .find(e=>/Relationship explorer/i.test(e.textContent||'')&&e.children.length<4);
+ if(h){h.scrollIntoView({block:'center'});return 'target'}
+ window.scrollTo(0,Math.min(1200,document.body.scrollHeight/3));return 'fallback'})()
+"""
+
+# Cheap readiness probe: are the persona cards actually painted yet?
+_JS_READY = """
+(()=>{const n=document.querySelectorAll('a[href*="/sales/lead/"]').length;
+const g=document.body.innerText.match(/\\b(1st|2nd|3rd)\\b/g);
+return JSON.stringify({leads:n,graded:(g||[]).length})})()
+"""
 
 
-def read_account(company_id: str, attempts: int = 3) -> dict:
+def read_account(company_id: str, attempts: int = 4) -> dict:
     """Account page → employees/location/revenue + every persona person with
     title, degree, mutual COUNT and lead id.
 
@@ -105,19 +121,28 @@ def read_account(company_id: str, attempts: int = 3) -> dict:
 
     best = {}
     for i in range(attempts):
-        chrome.run_js(_JS_SCROLL)
-        pace.pause_navigation()
+        chrome.run_js(" ".join(_JS_SCROLL.split()))
+        # Escalating patience: later attempts wait longer rather than re-poking
+        # at the same cadence. Cheap when the page is fast, decisive when it lags.
+        for _ in range(i + 1):
+            pace.pause_navigation()
+
+        ready = _js(" ".join(_JS_READY.split())) or {}
+        if not ready.get("graded"):
+            continue  # cards still not painted — scroll and wait again
+
         acct = _js(_JS_ACCOUNT) or {}
-        people = acct.get("people") or []
-        graded = [p for p in people if p.get("degree")]
+        graded = [p for p in (acct.get("people") or []) if p.get("degree")]
         if len(graded) > len(best.get("people") or []):
             best = acct
             best["people"] = graded
-        # good enough: we have graded people and at least one mutual count,
-        # or we have graded people and this is the last attempt
-        if graded and (any(p.get("mutuals") for p in graded) or i == attempts - 1):
+        if graded and any(p.get("mutuals") for p in graded):
             return best
-    return best or {"people": []}
+
+    if best.get("people"):
+        return best
+    # Honest failure. The caller must NOT write this — see sn_notion.write's guard.
+    return {"people": [], "thin": True}
 
 
 def mutual_names(lead_id: str) -> list[str]:

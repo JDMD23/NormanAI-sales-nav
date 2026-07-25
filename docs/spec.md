@@ -216,3 +216,31 @@ renders lazily, so `read_account` was reading the DOM before the persona cards
 This is the spec's own Unknown ≠ 0 rule applied to this lane: **a thin scan writes
 nothing.** Any future extractor change must keep guard (2) — it is the only thing
 standing between a rendering hiccup and silent data loss across the pipeline.
+
+### 10.2 Loop mode
+
+```bash
+python3 scripts/sn_run.py --backfill --loop --batch 15 --rest 180
+python3 scripts/sn_run.py --shelf Prospect --loop --batch 15 --min-fit 75
+```
+
+Batch → rest → repeat, re-pulling the queue from Notion each batch (so rows
+flagged mid-run get picked up automatically). Three stop conditions:
+
+| Stop | Why |
+|------|-----|
+| queue empty | the goal |
+| auth wall | the session is the scarce resource — abort, don't push through |
+| **zero writes in a batch** | anti-spin. A batch that writes nothing means a systematic bug; stop and say so rather than burning the seat on it. |
+
+`--rest` exists for session hygiene, not politeness theatre: continuous
+back-to-back scanning for an hour looks nothing like a human using the product.
+
+### 10.3 Lazy-render fix (second pass)
+
+The first hardening still produced thin reads on ~1 in 3 backfills. Cause: it
+scrolled a fixed 900px, but page furniture varies per account so that often
+lands nowhere near the Relationship Explorer. Now it scrolls **to the element**,
+runs a cheap readiness probe (`_JS_READY`) to confirm degree badges exist before
+extracting, escalates the wait on each retry, and tries 4×. Verified on the exact
+rows that had been refused: Finch Legal went 0 → 6 targets with mutuals.
