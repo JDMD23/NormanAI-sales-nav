@@ -166,3 +166,36 @@ Additive only. Created via Notion API with JD's go-ahead, then `schemaReady: tru
 - No outbound. No new CRM. No full-pipeline crawls (Top Pursuit + Prospect + explicit queue only).
 - No scraping beyond what JD's session displays; no wholesale connection exports.
 - No headcount field writes until the phase-3 ownership decision (crm-core LinkedIn lane owns those today).
+
+## 10. Running it (built 2026-07-23)
+
+The engine now runs unattended from the command line against JD's logged-in Chrome.
+
+```bash
+python3 scripts/sn_run.py --shelf "Top Pursuit"
+python3 scripts/sn_run.py --shelf Prospect --min-fit 82 --limit 15
+python3 scripts/sn_run.py --backfill        # rows flagged Need Warm Path Sync
+python3 scripts/sn_run.py --shelf Prospect --dry-run
+```
+
+Modules:
+- `scripts/sn_extract.py` — three verified JS payloads. `search_company` (spell-
+  correction OFF; it silently redirects to the wrong company), `read_account`
+  (one call returns every persona person with title/degree/mutual-count/lead id),
+  and `mutual_names` — the unlock: the mutual-connections view has a stable URL
+  built directly from a lead id, returning EVERY mutual by name. The hover popover
+  caps at 2; this does not.
+- `scripts/sn_notion.py` — format v3 writeback + registry tiers. `tier_of` tries
+  the full name before the pre-parenthetical form (registry contains names like
+  "Kirsten (Kiki) C."). Empty Connectivity is never written blank.
+- `scripts/sn_run.py` — selection, pacing, identity memo (`state/company_ids.json`,
+  so a company resolves once), auth-wall abort, angle/people-move derivation.
+
+The work queue lives in Notion, not on disk: `Need Warm Path Sync` and
+`Warm Path Checked At` are the state. Nothing to lose if the machine resets.
+
+**Known limits.** Identity resolution takes the first search hit when no id is
+memoised — fine for distinctive names, wrong for common ones (Artemis, Rebar,
+Sesame all mis-resolved during the manual sweep). Seed `state/company_ids.json`
+or pass the id for those. Angles are derived from spotlight/headcount only; the
+richer Account IQ narrative still needs a human or a later pass.
