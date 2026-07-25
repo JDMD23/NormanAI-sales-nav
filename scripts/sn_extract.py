@@ -87,13 +87,37 @@ def search_company(name: str) -> list[dict]:
     return _js(_JS_SEARCH_RESULTS) or []
 
 
-def read_account(company_id: str) -> dict:
+_JS_SCROLL = "(()=>{window.scrollTo(0,900);return '1'})()"
+
+
+def read_account(company_id: str, attempts: int = 3) -> dict:
     """Account page → employees/location/revenue + every persona person with
-    title, degree, mutual COUNT and lead id."""
+    title, degree, mutual COUNT and lead id.
+
+    The Relationship Explorer renders lazily: it needs a scroll and a beat before
+    the persona cards (and their mutual-connection chips) exist in the DOM. Read
+    too early and you get an empty or degraded person list — which previously
+    overwrote good data. Scroll, wait, and retry until the cards carry degree
+    info; give up honestly rather than return a thin result."""
     chrome.open_url(f"{SALES}/company/{company_id}")
     pace.pause_navigation()
     chrome.assert_logged_in()
-    return _js(_JS_ACCOUNT) or {}
+
+    best = {}
+    for i in range(attempts):
+        chrome.run_js(_JS_SCROLL)
+        pace.pause_navigation()
+        acct = _js(_JS_ACCOUNT) or {}
+        people = acct.get("people") or []
+        graded = [p for p in people if p.get("degree")]
+        if len(graded) > len(best.get("people") or []):
+            best = acct
+            best["people"] = graded
+        # good enough: we have graded people and at least one mutual count,
+        # or we have graded people and this is the last attempt
+        if graded and (any(p.get("mutuals") for p in graded) or i == attempts - 1):
+            return best
+    return best or {"people": []}
 
 
 def mutual_names(lead_id: str) -> list[str]:

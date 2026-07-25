@@ -199,3 +199,20 @@ memoised — fine for distinctive names, wrong for common ones (Artemis, Rebar,
 Sesame all mis-resolved during the manual sweep). Seed `state/company_ids.json`
 or pass the id for those. Angles are derived from spotlight/headcount only; the
 richer Account IQ narrative still needs a human or a later pass.
+
+### 10.1 Anti-erase guard (learned the hard way, 2026-07-23)
+
+The first unattended backfill run **overwrote verified paths with "no warm path
+found"** on Hex Technologies and Braintrust. Cause: the Relationship Explorer
+renders lazily, so `read_account` was reading the DOM before the persona cards
+(and their mutual chips) existed. Two fixes, both required:
+
+1. `read_account` now scrolls, waits, and retries up to 3× until the cards carry
+   degree info — keeping the best result across attempts.
+2. `sn_notion.write` refuses the write and returns `"degraded"` when the new
+   Connectivity would be the empty placeholder but the existing cell already
+   contains `↳ via`. The runner reports it as REFUSED and leaves the row intact.
+
+This is the spec's own Unknown ≠ 0 rule applied to this lane: **a thin scan writes
+nothing.** Any future extractor change must keep guard (2) — it is the only thing
+standing between a rendering hiccup and silent data loss across the pipeline.

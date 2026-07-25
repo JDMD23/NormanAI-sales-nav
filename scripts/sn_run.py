@@ -105,7 +105,7 @@ def main() -> int:
 
     print(f"{len(rows)} companies queued\n")
     ids = load_ids()
-    ok = flagged = parked = 0
+    ok = flagged = parked = degraded = 0
 
     for i, row in enumerate(rows, 1):
         name = row["name"]
@@ -130,13 +130,19 @@ def main() -> int:
             needs = sn_notion.write(row["page_id"], people,
                                     derive_angles(acct, people),
                                     derive_moves(people), token=token)
+            if needs == "degraded":
+                degraded += 1
+                print("  REFUSED — thin scan would have erased existing paths; left intact")
+                pace.pause_between_companies()
+                continue
             flagged += bool(needs)
             print(f"  written{' · flagged for name resolution' if needs else ''}")
         ok += 1
         save_ids(ids)
         pace.pause_between_companies()
 
-    print(f"\ndone — {ok} scanned, {flagged} need name resolution, {parked} parked")
+    print(f"\ndone — {ok} scanned, {flagged} need name resolution, "
+          f"{parked} parked, {degraded} refused (would have erased data)")
     return 0
 
 

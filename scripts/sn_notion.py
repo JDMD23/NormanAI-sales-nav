@@ -145,11 +145,26 @@ def build_rows(people: list[dict]) -> tuple[list, list, bool]:
     return poc, conn, needs
 
 
+def read_existing(page_id: str, token: str) -> str:
+    pg = nc.notion("GET", f"https://api.notion.com/v1/pages/{page_id}", token=token)
+    return "".join(t["plain_text"] for t in
+                   (pg["properties"].get(PROPS["connectivity"]) or {}).get("rich_text", []))
+
+
 def write(page_id: str, people: list[dict], angles: list[str],
           moves: list[str] | None = None, date: str = "2026-07-23",
-          token: str | None = None) -> bool:
+          token: str | None = None) -> bool | str:
+    """Returns needs_sync, or the string 'degraded' if the write was REFUSED
+    because it would have replaced real paths with none. Unknown != 0: a thin
+    scan must never blank verified data."""
     tok = token or nc.load_token()
     poc, conn, needs = build_rows(people)
+
+    new_txt = "".join(s["text"]["content"] for s in conn)
+    if "No warm path found" in new_txt:
+        prev = read_existing(page_id, tok)
+        if "↳ via" in prev:
+            return "degraded"
     props = {
         PROPS["workplacePoc"]: {"rich_text": poc[:100]},
         PROPS["connectivity"]: {"rich_text": conn[:100]},
