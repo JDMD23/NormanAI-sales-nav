@@ -27,7 +27,7 @@ Decisions locked:
 |-------|-----------|-------|
 | 1 | **List sync** — Notion shelves → SN account lists | Top Pursuit → "Norman — Top Pursuits", Prospect → "Norman — Prospects". Saving accounts is what turns on SN's own alert engine, feeding phase 2 cheaply. |
 | 1 | **Warm path mapping** — persona targets + mutual connections → Notion writeback | The core. Includes intro-node ranking. |
-| 1 | **Connection registry** — JD-curated tiers (`config/connections.json`): inner circle ⭐ tops Connectivity lines; skip list suppressed; unrated surfaced once for rating | Replaces frequency-based leaderboard (JD 2026-07-23). Frequency = tiebreaker within tier only. |
+| 1 | **Connection registry** — JD-curated tiers (`config/connections.json`), 5 levels: **core** > **inner** (⭐, tops lines) > **ok** (shown, unstarred) > **unrated** > **skip** (removed entirely from Connectivity). When skip removal empties a target's mutual list, write `no usable path` and flag `Need Warm Path Sync` — never leave a dead path looking live. | Replaces frequency-based leaderboard (JD 2026-07-23). Frequency = tiebreaker within tier only. |
 | 1 | **New-hire tripwire** — `NEW HIRE ·` prefix on recently-hired POCs; people-move alert triggers same-day rescan | 4/10 pilot companies had one. First-90-days window. |
 | 2 | **Angles** — account alerts (news, hires, funding) harvested from the SN feed/list alert views | Confirmed in (JD). e.g. Omni $120M Series C. Written as angle entries; input for Norman's outreach drafting. |
 | 2 | **Digest** — per run: "N new warm paths, M new angles, new connectors to rate" | Likely the daily-use surface. |

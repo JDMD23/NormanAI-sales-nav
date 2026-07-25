@@ -1,5 +1,5 @@
 {
-  "_doc": "JD's connection-strength registry (seeded 2026-07-23, 73 profiles = main working relationship tree). Scanner reads this every run. core = the 'very strong easy ones' subset (JD flags over time; ranks above inner). inner = gold connects, starred, top of Connectivity. skip = never surface. Unlisted = neutral, surfaced once for rating. needsNameResolution = ambiguous vanity slug; resolve display name from profile on next live session. Frequency across companies = tiebreaker within tier only.",
+  "_doc": "JD's connection-strength registry (seeded 2026-07-23, 73 profiles = main working relationship tree). Scanner reads this every run. tiers: core (strongest) > inner (gold, starred) > ok (usable, unstarred) > unrated > skip (suppressed entirely) (JD flags over time; ranks above inner). inner = gold connects, starred, top of Connectivity. skip = never surface. Unlisted = neutral, surfaced once for rating. needsNameResolution = ambiguous vanity slug; resolve display name from profile on next live session. Frequency across companies = tiebreaker within tier only.",
   "core": [],
   "inner": [
     {
@@ -108,10 +108,6 @@
     {
       "url": "https://www.linkedin.com/in/chris-hedley-46a09671/",
       "name": "Chris Hedley"
-    },
-    {
-      "url": "https://www.linkedin.com/in/julia-schottenstein-25424318/",
-      "name": "Julia Schottenstein"
     },
     {
       "url": "https://www.linkedin.com/in/lisafischoff/",
@@ -299,9 +295,17 @@
       "name": "Brian Bramswig"
     }
   ],
-  "skip": [],
+  "skip": [
+    {
+      "name": "Lauren Nemeth",
+      "note": "VP Global Enterprise Revenue, Shopify — JD: not good. Suppress."
+    },
+    {
+      "name": "Zach Goldstein",
+      "note": "Partner, Operator Partners — JD: not good. Suppress."
+    }
+  ],
   "pendingRating": [
-    "Zach Goldstein (Operator Partners)",
     "Brandon Wagoner (SpaceX)",
     "dwayne nonales (Sequence Holdings)",
     "Joe Carbonaro (Parasol)",
@@ -310,7 +314,17 @@
     "Malte Kosub (Parloa)",
     "Tom Malloy (Norm Ai)",
     "Celeste Candela (Insmed)",
-    "Troy Steckenrider (TKCEC)",
-    "Lauren Nemeth (Shopify)"
+    "Troy Steckenrider (TKCEC)"
+  ],
+  "ok": [
+    {
+      "name": "Mike Shebat",
+      "note": "CEO & Co-Founder, Traba — JD: ok, not great"
+    },
+    {
+      "name": "Julia Schottenstein",
+      "url": "https://www.linkedin.com/in/julia-schottenstein-25424318/",
+      "note": "COO, LangChain — JD: ok, not great (demoted from inner 2026-07-23)"
+    }
   ]
 }
