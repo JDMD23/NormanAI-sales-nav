@@ -173,6 +173,12 @@ def run_batch(args, token, cap: int):
             print(f"  ! {exc}\n  stopping run (retry later)")
             save_ids(ids)
             return None
+        if acct.get("error") == "ambiguous_identity":
+            cands = ", ".join(f"{n} ({i})" for n, i in acct.get("candidates", [])[:3])
+            print(f"  parked — ambiguous name; paste the right id into "
+                  f"state/company_ids.json. candidates: {cands}")
+            parked += 1
+            continue
         if acct.get("error") or not acct.get("people"):
             print("  parked — no Sales Nav match or no persona data")
             parked += 1

@@ -160,6 +160,37 @@ def mutual_names(lead_id: str) -> list[str]:
     return _js(_JS_NAMES) or []
 
 
+def _norm(s: str) -> str:
+    keep = "".join(c for c in s.casefold() if c.isalnum() or c == " ")
+    drop = {"inc", "llc", "ltd", "co", "corp", "technologies", "technology",
+            "labs", "ai", "the", "health", "software", "group"}
+    return " ".join(w for w in keep.split() if w not in drop).strip()
+
+
+def pick_match(name: str, hits: list[dict]) -> dict | None:
+    """Choose a search result only when it plausibly IS the company.
+
+    Taking hits[0] blindly poisoned the identity memo on 2026-07-23 — "Finch
+    Legal" resolved to an unrelated Finch, "PointOne" to a random account. Wrong
+    ids then produced thin scans that the write guard had to refuse. Better to
+    park an ambiguous name and let a human paste the id than to silently scan
+    the wrong company.
+    """
+    want = _norm(name)
+    if not want:
+        return None
+    exact = [h for h in hits if _norm(h["name"]) == want]
+    if len(exact) == 1:
+        return exact[0]
+    if len(exact) > 1:
+        return None  # genuinely ambiguous (many "Radial"s) — needs a human
+    # Prefix, not substring: "Sesame" must not match "Open Sesame AI" — leading
+    # words change the entity. Trailing words usually don't ("Hex" / "Hex Inc").
+    pre = [h for h in hits
+           if _norm(h["name"]).startswith(want) or want.startswith(_norm(h["name"]))]
+    return pre[0] if len(pre) == 1 else None
+
+
 def scan_company(name: str, company_id: str | None = None, max_targets: int = 6) -> dict:
     """Full company scan: resolve → read account → resolve mutuals by name.
 
@@ -172,7 +203,11 @@ def scan_company(name: str, company_id: str | None = None, max_targets: int = 6)
         hits = search_company(name)
         if not hits:
             return {"error": "no_search_results", "name": name}
-        company_id = hits[0]["id"]
+        match = pick_match(name, hits)
+        if match is None:
+            return {"error": "ambiguous_identity", "name": name,
+                    "candidates": [(h["name"], h["id"]) for h in hits[:5]]}
+        company_id = match["id"]
 
     acct = read_account(company_id)
     acct["company_id"] = company_id

@@ -244,3 +244,28 @@ lands nowhere near the Relationship Explorer. Now it scrolls **to the element**,
 runs a cheap readiness probe (`_JS_READY`) to confirm degree badges exist before
 extracting, escalates the wait on each retry, and tries 4×. Verified on the exact
 rows that had been refused: Finch Legal went 0 → 6 targets with mutuals.
+
+### 10.4 Identity guard (the bug that mattered most)
+
+`scan_company` used to take `hits[0]` from company search. That poisoned
+`state/company_ids.json`: **Finch Legal** memoised to an unrelated "Finch",
+**PointOne** to id 28003, **Radial** and **Peregrine** likewise. Every later scan
+then read the *wrong company*.
+
+It did not corrupt Notion — the §10.1 anti-erase guard refused all five writes
+because the wrong-company scans came back thin. Two independent guards, and the
+second one caught what the first missed. Keep both.
+
+Fixes:
+- `pick_match()` accepts a search hit only on an exact normalised name match, or
+  a **prefix** match in either direction. Prefix, not substring: "Sesame" must
+  not match "Open Sesame AI" — leading words change the entity, trailing ones
+  usually don't. Multiple equal candidates (several "Radial"s) → park.
+- Unresolvable names return `ambiguous_identity` with candidate ids, and the
+  runner prints them so a human can paste the right one into
+  `state/company_ids.json`.
+- The map was rebuilt from the 47 ids verified by eye during the manual sweep
+  (parsed out of `docs/sweep-2026-07-23.md`).
+
+Lesson: a heuristic that is right 90% of the time is a *data-integrity* bug when
+its output is cached and reused.
