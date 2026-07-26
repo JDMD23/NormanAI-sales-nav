@@ -39,6 +39,11 @@ out.employees=(b.match(/([\\d.,]+K?\\+?)\\s*employees/)||[])[1]||null;
 out.location=(b.match(/\\n([A-Z][a-zA-Z .]+,\\s*[A-Za-z ]+,\\s*United States)\\n/)||[])[1]||null;
 out.revenue=(b.match(/(\\$[\\dKMB.]+\\s*-\\s*\\$[\\dKMB.]+)\\s*in revenue/)||[])[1]||null;
 out.spotlight=(b.match(/\\d+ senior leadership hires?/)||[])[0]||null;
+out.priorities=(()=>{const i=b.indexOf('Strategic priorities');if(i<0)return [];
+ const seg=b.slice(i+20,i+900).split('\\n').map(s=>s.trim())
+  .filter(s=>s.length>25&&!/^(View more|Was this helpful|Sources)/.test(s));
+ return seg.slice(0,3)})();
+out.funding=(b.match(/(raised|raising|Series [A-F]|funding round|IPO)[^.\\n]{0,90}/i)||[])[0]||null;
 const seen=new Set();out.people=[];
 for(const a of document.querySelectorAll('a[href*="/sales/lead/"]')){
  const n=a.innerText.trim().split('\\n')[0];
@@ -69,7 +74,12 @@ return JSON.stringify([...s])})()
 
 
 def _js(expr: str):
-    raw = chrome.run_js(" ".join(expr.split()))
+    # Payloads are collapsed to one line for AppleScript, so a JS // comment
+    # would swallow everything after it. Strip them rather than rely on nobody
+    # ever adding one (2026-07-23: someone did, and it broke every scan).
+    body = "\n".join(l.split("//")[0] if l.strip().startswith("//") else l
+                     for l in expr.splitlines())
+    raw = chrome.run_js(" ".join(body.split()))
     try:
         return json.loads(raw)
     except Exception:

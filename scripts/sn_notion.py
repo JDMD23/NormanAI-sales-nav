@@ -197,7 +197,73 @@ def write(page_id: str, people: list[dict], angles: list[str],
         props[PROPS["peopleMoves"]] = {"rich_text": [seg("\n".join(moves))]}
     nc.notion("PATCH", f"https://api.notion.com/v1/pages/{page_id}",
               {"properties": props}, token=tok)
+    write_body(page_id, people, date, tok)
     return needs
+
+
+def _para(rich):
+    return {"object": "block", "type": "paragraph", "paragraph": {"rich_text": rich}}
+
+
+def _bullet(rich):
+    return {"object": "block", "type": "bulleted_list_item",
+            "bulleted_list_item": {"rich_text": rich}}
+
+
+def write_body(page_id: str, people: list[dict], date: str, token: str) -> None:
+    """Managed 'Warm Paths' section in the page body.
+
+    The columns are for scanning; this is for when JD opens the row. Automating
+    the writeback originally dropped it — 98 machine-scanned rows ended up with
+    no detail layer at all while the hand-written ones had it. Rewrites only
+    between its own markers; anything else on the page is never touched.
+    """
+    kids = nc.notion("GET", f"https://api.notion.com/v1/blocks/{page_id}/children?page_size=100",
+                     token=token).get("results", [])
+    start = None
+    for i, b in enumerate(kids):
+        if b["type"] == "heading_2" and "Warm Paths" in "".join(
+                t["plain_text"] for t in b["heading_2"]["rich_text"]):
+            start = i - 1 if i and kids[i - 1]["type"] == "divider" else i
+            break
+    if start is not None:
+        for b in kids[start:]:
+            nc.notion("DELETE", f"https://api.notion.com/v1/blocks/{b['id']}", token=token)
+
+    blocks = [
+        {"object": "block", "type": "divider", "divider": {}},
+        {"object": "block", "type": "heading_2",
+         "heading_2": {"rich_text": [seg("Warm Paths")]}},
+        _para([seg(f"managed by sales-nav · last scan {date}", italic=True, color="gray")]),
+    ]
+    reachable = [p for p in people if p.get("via") or p.get("degree") == "1st"]
+    for p in reachable:
+        line = [seg(p["name"], LEAD + p["lead_id"], bold=True),
+                seg(f" — {p.get('title') or '?'} ({p.get('degree') or '?'})")]
+        if p.get("degree") == "1st":
+            line.append(seg(" — you're connected; go direct."))
+        else:
+            txt, _ = render_via(p.get("via") or [])
+            line.append(seg(" — " + txt + "."))
+        extra = []
+        if p.get("past_colleague"):
+            extra.append("past colleague")
+        if p.get("follows_company"):
+            extra.append("follows your company")
+        if extra:
+            line.append(seg(" " + ", ".join(extra).capitalize() + "."))
+        blocks.append(_bullet(line))
+
+    watch = [p for p in people if p not in reachable]
+    if watch:
+        blocks.append(_para(
+            [seg("Watch list (no path yet): ", bold=True),
+             seg(" · ".join(f"{p['name']} — {p.get('title') or '?'}" for p in watch[:10]))]))
+    if not reachable:
+        blocks.append(_para([seg("No warm path at this scan. Every persona match is "
+                                 "3rd degree or shows no shared connections.")]))
+    nc.notion("PATCH", f"https://api.notion.com/v1/blocks/{page_id}/children",
+              {"children": blocks}, token=token)
 
 
 def select(status: str, unscanned_only: bool = True, token: str | None = None) -> list[dict]:

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 from datetime import date
@@ -44,17 +45,30 @@ def save_ids(m: dict) -> None:
 
 
 def derive_angles(acct: dict, people: list[dict]) -> list[str]:
+    """Angles, best-signal first. Headcount alone is not an angle — the Account IQ
+    strategic priorities are where the real ones live ('expanding US operations,
+    particularly in New York City'), so they lead."""
     out = []
+    if acct.get("funding"):
+        out.append(f"Funding: {acct['funding'].strip()}")
+    for pr in (acct.get("priorities") or [])[:2]:
+        out.append(f"Priority: {pr}")
     if acct.get("spotlight"):
         out.append(f"People: {acct['spotlight']} (SN spotlight)")
     news = [p for p in people if p.get("flag") == "NEW"]
     if len(news) >= 3:
         out.append(f"People: hiring wave — {len(news)} recent hires among decision-makers")
+    # Workplace/ops roles on staff are a stronger office-demand signal than size.
+    seats = [p["name"] for p in people
+             if re.search(r"workplace|facilit|office manager|head of operations",
+                          (p.get("title") or ""), re.I)]
+    if seats:
+        out.append(f"Workplace seat on staff: {', '.join(seats[:2])}")
     bits = [b for b in (acct.get("employees") and f"{acct['employees']} ppl",
                         acct.get("location"), acct.get("revenue")) if b]
     if bits:
         out.append(" · ".join(bits))
-    return out or ["(no angle surfaced this scan)"]
+    return out[:4] or ["(no angle surfaced this scan)"]
 
 
 def derive_moves(people: list[dict]) -> list[str]:
