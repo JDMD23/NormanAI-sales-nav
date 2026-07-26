@@ -127,8 +127,11 @@ def derive_angles(acct: dict, people: list[dict]) -> list[str]:
     if g:
         out.append(g)
     # A nine-month-old post is not a reason to call today.
+    def _fresh(a):
+        d = _age_days(a.get("age"))   # 0 for "16 hours" — must not be read as falsy
+        return d is not None and d <= 90
     fresh = [a for a in (acct.get("alerts") or [])
-             if (_age_days(a.get("age")) or 999) <= 90 and score_alert(a["text"]) >= 5]
+             if _fresh(a) and score_alert(a["text"]) >= 5]
     for a in sorted(fresh,
                     key=lambda a: -score_alert(a["text"]))[:2]:
         age = f" ({a['age']} ago)" if a.get("age") else ""

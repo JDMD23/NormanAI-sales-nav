@@ -415,3 +415,14 @@ Three false positives found by reading real output, not by writing tests first:
 - Marble Health led with posts from **nine months ago**. Alerts are now capped at
   90 days; a stale post is not a reason to call today.
 
+
+**Postscript to §10.12 — the freshness filter dropped the freshest items.**
+`(_age_days(age) or 999) <= 90` looks correct and is not: `_age_days("16 hours")`
+returns `0`, which is falsy, so it became 999 and every alert posted *today* was
+discarded as stale. Only day/week-aged items survived. Fixed with an explicit
+`is not None` test. Alerts with no parseable age are also dropped — unknown
+freshness is not the same as fresh, same discipline as Unknown != 0.
+
+Found the same way as the rest: reading the written rows. News coverage was
+3/15 when it should have been higher, and "the filter is working" was the wrong
+conclusion to draw from a low number.
