@@ -370,3 +370,20 @@ braces. Every scan died on a syntax error.
 Fixed at the source: `_js()` strips `//` line comments before collapsing. The
 trap is invisible at the point of use — the comment looks fine in the file — and
 the next person to document a selector inline would hit it again.
+
+### 10.11 "Funding" that was not funding
+
+The first funding regex was `(raised|raising|Series [A-F]|funding round|IPO)`
+against the whole page text. It produced confident nonsense on the first refresh
+batch: Mercor got "raising concerns about data security", Navan got "IPO
+Disclosures and Shareholder Risk". Both are risk-section prose. An angle that is
+wrong is worse than no angle — JD would open a call with it.
+
+Now a funding match must pair an event verb (raised/closed/secured/announced)
+with an actual **amount or round letter**, and an explicit blocklist kills
+"raising concerns/questions/awareness". No match falls through to the strategic
+priority, which is the better angle anyway. Verified: both false positives gone,
+Hex's "$70 million Series C" and Manifest's "$60M from Kleiner Perkins" kept.
+
+Caught by eyeballing the actual written output of batch 1 rather than the run
+counters — which said 15/15 written, and were right.

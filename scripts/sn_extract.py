@@ -43,7 +43,10 @@ out.priorities=(()=>{const i=b.indexOf('Strategic priorities');if(i<0)return [];
  const seg=b.slice(i+20,i+900).split('\\n').map(s=>s.trim())
   .filter(s=>s.length>25&&!/^(View more|Was this helpful|Sources)/.test(s));
  return seg.slice(0,3)})();
-out.funding=(b.match(/(raised|raising|Series [A-F]|funding round|IPO)[^.\\n]{0,90}/i)||[])[0]||null;
+out.funding=(()=>{const bad=/raising (concerns|questions|awareness|the bar|doubts)|IPO (disclosure|risk)/i;
+ const re=/[^.\\n]{0,80}(raised|closed|secured|announced)[^.\\n]{0,40}(\\$[\\d.]+\\s*(million|billion|M|B)|Series [A-F])[^.\\n]{0,60}|[^.\\n]{0,60}(\\$[\\d.]+\\s*(million|billion|M|B))\\s+(Series [A-F]|funding|round)[^.\\n]{0,60}/ig;
+ let m;while((m=re.exec(b))!==null){const t=m[0].trim();if(!bad.test(t)&&t.length>15)return t}
+ return null})();
 const seen=new Set();out.people=[];
 for(const a of document.querySelectorAll('a[href*="/sales/lead/"]')){
  const n=a.innerText.trim().split('\\n')[0];
