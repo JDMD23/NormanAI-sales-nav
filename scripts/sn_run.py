@@ -44,11 +44,62 @@ def save_ids(m: dict) -> None:
     IDMAP.write_text(json.dumps(m, indent=1, sort_keys=True))
 
 
+# What actually implies an office need, in JD's business. Ranked, because an
+# alert saying "we opened a New York office" is not the same kind of fact as
+# "we shipped a feature" — and Sales Nav alerts are mostly the latter.
+_SIGNAL = [
+    (9, r"\b(new york|nyc|manhattan|brooklyn)\b"),
+    (8, r"\b(new office|opening an office|opened .{0,15}office|relocat\w*|"
+        r"moving to|new headquarters|new hq|square feet|new space|footprint)\b"),
+    # Hiring only counts as a *wave*. Bare "joined" matches "joined our customer
+    # on CNBC"; bare "started" matches one person changing jobs, which is already
+    # captured in People Moves and is not a company-level angle.
+    (7, r"(\b\d+|\b(ten|twelve|fifteen|sixteen|twenty|thirty)\b)[^.]{0,25}"
+        r"\b(new hires?|started|joined|onboard\w*)\b"
+        r"|\blargest[^.]{0,20}class\b|\bwe'?re hiring\b|\bgrowing the team\b"
+        r"|\bexpand\w*\s+(the\s+)?team\b|\bheadcount\b"),
+    (5, r"\b(series [a-f]\b|raised \$|funding round|acquisition of|acquired)\b"),
+]
+_NOISE = re.compile(
+    r"\b(webinar|blog|podcast|ebook|whitepaper|case study|integration|"
+    r"changelog|now supports|announcing .{0,20}(feature|api|sdk)|tracing|"
+    r"observability|benchmark|started a new position)\b", re.I)
+
+
+def score_alert(text: str) -> int:
+    """Higher = more likely to mean this company needs space."""
+    if _NOISE.search(text):
+        return 0
+    return sum(w for w, pat in _SIGNAL if re.search(pat, text, re.I))
+
+
+def growth_angle(acct: dict) -> str | None:
+    """A headcount curve is the most reliable office-demand signal there is, and
+    unlike Account IQ it exists for every company. Only surface it when the
+    growth is actually notable — '+4% in six months' is not an angle."""
+    try:
+        g6 = int((acct.get("g6") or "").replace(",", ""))
+    except ValueError:
+        return None
+    if g6 < 25:
+        return None
+    tot = acct.get("total") or "?"
+    tail = f", +{acct['g1y']}% 1y" if acct.get("g1y") else ""
+    return f"Growth: {tot} people, +{g6}% in 6 months{tail} — outgrowing space"
+
+
 def derive_angles(acct: dict, people: list[dict]) -> list[str]:
     """Angles, best-signal first. Headcount alone is not an angle — the Account IQ
     strategic priorities are where the real ones live ('expanding US operations,
     particularly in New York City'), so they lead."""
     out = []
+    g = growth_angle(acct)
+    if g:
+        out.append(g)
+    for a in sorted([a for a in (acct.get("alerts") or []) if score_alert(a["text"]) >= 5],
+                    key=lambda a: -score_alert(a["text"]))[:2]:
+        age = f" ({a['age']} ago)" if a.get("age") else ""
+        out.append(f"News{age}: {a['text'][:180]}")
     if acct.get("funding"):
         out.append(f"Funding: {acct['funding'].strip()}")
     for pr in (acct.get("priorities") or [])[:2]:

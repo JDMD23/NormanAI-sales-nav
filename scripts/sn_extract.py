@@ -159,6 +159,47 @@ def read_account(company_id: str, attempts: int = 4) -> dict:
     return {"people": [], "thin": True}
 
 
+_JS_TAIL = """
+(()=>{const b=document.body.innerText;const out={};
+const gi=b.lastIndexOf('Growth insights');
+if(gi>=0){const g=b.slice(gi,gi+1200);
+ out.total=(g.match(/([\\d,.]+K?\\+?)\\s+total employees/)||[])[1]||null;
+ out.g6=(g.match(/([\\d,]+)%\\s+6m growth/)||[])[1]||null;
+ out.g1y=(g.match(/([\\d,]+)%\\s+1y growth/)||[])[1]||null;
+ out.tenure=(g.match(/Median tenure[^\\d]{0,6}([\\d.]+)\\s*years/)||[])[1]||null}
+const ai=b.lastIndexOf('Alerts filters');out.alerts=[];
+if(ai>=0){const lines=b.slice(ai,ai+4000).split('\\n').map(s=>s.trim()).filter(Boolean);
+ let age=null;
+ for(const L of lines){
+  if(/^\\d+\\s+(hour|day|week|month)s?$/i.test(L)){age=L;continue}
+  if(L.length<40)continue;
+  if(/View details|View account|posted a new|Close the navigation|Recent and important/.test(L))continue;
+  out.alerts.push({age:age,text:L.slice(0,260).replace(/[^\\x20-\\x7e]/g,'').trim()});age=null;
+  if(out.alerts.length>=6)break}}
+return JSON.stringify(out)})()
+"""
+
+
+def read_tail(attempts: int = 3) -> dict:
+    """Growth insights + Alerts — both live below the fold and load lazily.
+
+    Account IQ is absent for ~1 in 5 of JD's targets (LinkedIn: "not optimized
+    for this company size yet"), and those are exactly the small fast-growing
+    companies most likely to outgrow a space. These two panels are on every
+    account page regardless, and carry the better signal anyway: a headcount
+    curve and what the company is actually announcing.
+    """
+    out = {}
+    for i in range(attempts):
+        for frac in (0.4, 0.7, 0.9, 1.0):
+            chrome.run_js(f"window.scrollTo(0,document.body.scrollHeight*{frac});'x'")
+            pace.pause_navigation()
+        out = _js(_JS_TAIL) or {}
+        if out.get("alerts") or out.get("g6"):
+            return out
+    return out
+
+
 def mutual_names(lead_id: str) -> list[str]:
     """THE unlock: build the mutual-connections lead search directly from a lead
     id and read every mutual by name. Replaces clicking the popover (which caps
@@ -249,6 +290,7 @@ def scan_company(name: str, company_id: str | None = None, max_targets: int = 6)
         company_id = match["id"]
 
     acct = read_account(company_id)
+    acct.update({k: v for k, v in read_tail().items() if v})
     acct["company_id"] = company_id
     people = acct.get("people", [])
 
