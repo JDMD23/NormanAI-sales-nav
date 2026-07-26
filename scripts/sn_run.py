@@ -201,6 +201,10 @@ def run_loop(args, run_batch) -> int:
             return 1
         for k in totals:
             totals[k] += res[k]
+        if res.get("capped"):
+            print(f"\nSTOPPED — daily cap reached after {batch_no} batches. "
+                  f"Rerun tomorrow; the queue rebuilds itself from Notion.")
+            break
         if res["queued"] == 0:
             print(f"\nQUEUE EMPTY after {batch_no - 1} batches")
             break
@@ -242,6 +246,12 @@ def main() -> int:
     ap.add_argument("--rest", type=int, default=180,
                     help="seconds between batches with --loop (session hygiene)")
     args = ap.parse_args()
+    if args.batch > pace.batch_limit():
+        print(f"--batch {args.batch} exceeds configured batchLimit "
+              f"{pace.batch_limit()}; clamping.")
+        args.batch = pace.batch_limit()
+    if args.limit is not None and args.limit > pace.remaining_today():
+        args.limit = pace.remaining_today()
 
     if not (args.shelf or args.backfill or args.refresh or args.unmapped):
         ap.error("need --shelf, --backfill, --refresh or --unmapped")
@@ -300,7 +310,16 @@ def run_batch(args, token, cap: int, exclude: set | None = None):
 
     for i, row in enumerate(rows, 1):
         name = row["name"]
-        print(f"[{i}/{len(rows)}] {name} (fit {row['fit']})", flush=True)
+        try:
+            pace.check_budget()
+        except pace.DailyCapReached as exc:
+            print(f"\nSTOPPING — {exc}")
+            save_ids(ids)
+            return {"ok": ok, "flagged": flagged, "parked": parked, "degraded": degraded,
+                    "queued": 0, "ids": {r["page_id"] for r in rows[:i - 1]}, "capped": True}
+        print(f"[{i}/{len(rows)}] {name} (fit {row['fit']})  "
+              f"[{pace.remaining_today()} left today]", flush=True)
+        pace.record_scan()
         try:
             acct = sn_extract.scan_company(name, ids.get(name))
         except chrome.DependencyError as exc:

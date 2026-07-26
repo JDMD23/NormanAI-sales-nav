@@ -426,3 +426,28 @@ freshness is not the same as fresh, same discipline as Unknown != 0.
 Found the same way as the rest: reading the written rows. News coverage was
 3/15 when it should have been higher, and "the filter is working" was the wrong
 conclusion to draw from a low number.
+
+### 10.13 The cap that was never enforced
+
+`pace.json` has carried `dailyCompanyCap: 25` and `batchLimit: 8` since the
+first commit. **No code read `dailyCompanyCap`**, and `batchLimit` was bypassed
+by passing `--batch 15` explicitly. On 2026-07-25 six back-to-back runs put
+**397 companies** through JD's Sales Navigator seat in one day — each one an
+account page plus up to six mutual-connection searches, so well over a thousand
+page loads against a configured ceiling of 25. LinkedIn sent him a notice.
+
+The seat is the scarce resource in this whole system. Losing it costs more than
+every angle this repo has ever produced. A limit that lives in a config file and
+is never read is not a limit; it is a comment.
+
+Now enforced in code:
+- `state/daily_scans.json` — a ledger incremented **before** each company scan,
+  checked by `pace.check_budget()`. Raises `DailyCapReached`.
+- `--batch` is clamped to `batchLimit`; it can no longer exceed it.
+- `--limit` is clamped to what remains in the day's budget.
+- The loop stops on the cap and says so, rather than draining the queue.
+- Pacing slowed: ~20-35s between companies (was 7-12), ~9-16s per navigation
+  (was 5-9).
+
+The ledger was seeded with the real 397 so the tool refuses to run again today
+rather than starting from a convenient zero.
