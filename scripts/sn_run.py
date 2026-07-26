@@ -135,7 +135,10 @@ def derive_angles(acct: dict, people: list[dict]) -> list[str]:
     for a in sorted(fresh,
                     key=lambda a: -score_alert(a["text"]))[:2]:
         age = f" ({a['age']} ago)" if a.get("age") else ""
-        out.append(f"News{age}: {a['text'][:180]}")
+        # Show exactly the text that was scored. Truncating below the scored
+        # length once left a row reading like unexplained product marketing —
+        # the phrase that earned it a place was in the part cut off.
+        out.append(f"News{age}: {a['text']}")
     if acct.get("funding"):
         out.append(f"Funding: {acct['funding'].strip()}")
     for pr in (acct.get("priorities") or [])[:2]:
