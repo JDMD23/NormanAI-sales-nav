@@ -387,3 +387,31 @@ Hex's "$70 million Series C" and Manifest's "$60M from Kleiner Perkins" kept.
 
 Caught by eyeballing the actual written output of batch 1 rather than the run
 counters — which said 15/15 written, and were right.
+
+### 10.12 Growth + Alerts: the angle source that exists for everyone
+
+Account IQ is missing for ~1 in 5 targets — LinkedIn states it plainly on the
+page: *"Account IQ isn't optimized for this company size yet."* Those are the
+small, fast-growing companies most likely to need space, so the richest source
+was blank exactly where it mattered most. Two panels lower on the same account
+page are always present:
+
+**Growth insights** — a headcount curve. The most reliable office-demand signal
+available, and the gate matters more than the extraction. Rate alone is wrong:
+a 30-person startup at +40% adds twelve people; Garner Health at +12% adds
+fifty-nine. Surface when `g6 >= 25%` **or** (`g6 >= 8%` and net adds >= 40).
+
+**Alerts** — the company's own posts. Mostly product marketing, so they are
+scored for what implies an office need (NYC > new space > hiring wave > funding)
+and anything scoring zero is dropped. Braintrust's six observability posts all
+score zero; Serval's "sixteen new starters, largest class in company history"
+scores 7.
+
+Three false positives found by reading real output, not by writing tests first:
+- *"joined our customer on CNBC"* — bare `joined` is not hiring. Hiring must read
+  as a **wave**: a number attached, "largest class", "we're hiring".
+- *"X started a new position"* — one person changing jobs, already captured in
+  People Moves, not a company angle.
+- Marble Health led with posts from **nine months ago**. Alerts are now capped at
+  90 days; a stale post is not a reason to call today.
+

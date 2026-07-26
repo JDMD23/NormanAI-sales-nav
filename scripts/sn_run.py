@@ -73,19 +73,49 @@ def score_alert(text: str) -> int:
     return sum(w for w, pat in _SIGNAL if re.search(pat, text, re.I))
 
 
+def _people(tot: str | None) -> int | None:
+    if not tot:
+        return None
+    m = re.match(r"([\d,.]+)\s*(K)?", tot.replace("+", ""))
+    if not m:
+        return None
+    try:
+        n = float(m.group(1).replace(",", ""))
+    except ValueError:
+        return None
+    return int(n * 1000) if m.group(2) else int(n)
+
+
+def _age_days(age: str | None) -> int | None:
+    """'16 hours' / '2 days' / '9 months' -> days."""
+    if not age:
+        return None
+    m = re.match(r"(\d+)\s+(hour|day|week|month)", age, re.I)
+    if not m:
+        return None
+    return int(m.group(1)) * {"hour": 0, "day": 1, "week": 7, "month": 30}[m.group(2).lower()]
+
+
 def growth_angle(acct: dict) -> str | None:
-    """A headcount curve is the most reliable office-demand signal there is, and
-    unlike Account IQ it exists for every company. Only surface it when the
-    growth is actually notable — '+4% in six months' is not an angle."""
+    """The most reliable office-demand signal there is, and unlike Account IQ it
+    exists for every company.
+
+    Rate alone is the wrong test. A 30-person startup at +40% adds 12 people;
+    Garner Health at +12% adds 59. The second one is the space problem. So take
+    whichever reading is more telling — a fast rate, or a large absolute add.
+    """
     try:
         g6 = int((acct.get("g6") or "").replace(",", ""))
     except ValueError:
         return None
-    if g6 < 25:
+    tot = _people(acct.get("total"))
+    adds = int(tot * g6 / 100) if tot else 0
+    if not (g6 >= 25 or (g6 >= 8 and adds >= 40)):
         return None
-    tot = acct.get("total") or "?"
+    who = f"{tot:,} people" if tot else "headcount"
+    net = f" (~{adds:,} net adds)" if adds >= 20 else ""
     tail = f", +{acct['g1y']}% 1y" if acct.get("g1y") else ""
-    return f"Growth: {tot} people, +{g6}% in 6 months{tail} — outgrowing space"
+    return f"Growth: {who}, +{g6}% in 6 months{tail}{net}"
 
 
 def derive_angles(acct: dict, people: list[dict]) -> list[str]:
@@ -96,7 +126,10 @@ def derive_angles(acct: dict, people: list[dict]) -> list[str]:
     g = growth_angle(acct)
     if g:
         out.append(g)
-    for a in sorted([a for a in (acct.get("alerts") or []) if score_alert(a["text"]) >= 5],
+    # A nine-month-old post is not a reason to call today.
+    fresh = [a for a in (acct.get("alerts") or [])
+             if (_age_days(a.get("age")) or 999) <= 90 and score_alert(a["text"]) >= 5]
+    for a in sorted(fresh,
                     key=lambda a: -score_alert(a["text"]))[:2]:
         age = f" ({a['age']} ago)" if a.get("age") else ""
         out.append(f"News{age}: {a['text'][:180]}")
