@@ -326,3 +326,47 @@ parks (two similar-sized "Radial"s remain a human decision).
 
 Both failure directions cost real money: too loose scanned the wrong company and
 poisoned the cache; too strict stranded the tail. The margin is the knob.
+
+### 10.8 The detail layer went missing when the writeback was automated
+
+The hand-run pilot wrote two layers per company: the properties (for scanning a
+board view) and a **Warm Paths section in the page body** (for when JD actually
+opens the row). When the writeback was automated, only the properties were
+ported. Nobody noticed for 169 companies, because the columns looked right —
+the audit found **98 rows with properties but no body at all**.
+
+`sn_notion.write_body()` restores it, and owns exactly one section: it finds its
+own `Warm Paths` H2 (plus the divider above it), deletes from there, and appends
+fresh. Anything else on the page is never touched, so hand-written notes on a
+company page survive a rescan.
+
+Lesson: a manual→automated port needs a diff of the *output*, not just a reading
+of the code. The code was correct at everything it did; it just did less.
+
+### 10.9 Headcount is not an angle
+
+`derive_angles()` originally emitted the SN spotlight plus size/location/revenue.
+That is a description of a company, not a reason to call one. The best insights
+in the manual pass all came from **Account IQ** — a panel the extractor never
+read: "expanding its operations in the United States, particularly in New York
+City" (ElevenLabs), "$120M Series C" (Omni). One of those is a leasing trigger;
+`1K+ ppl` is not.
+
+`_JS_ACCOUNT` now lifts `Strategic priorities` and any funding sentence, and
+angles order best-signal-first: funding → priorities → people moves → workplace
+seat on staff → size. Size stays last as context, capped at four lines total.
+
+Added with it: a **workplace seat** signal. A company with a Head of Workplace or
+Head of Ops on staff has someone whose job is the office — a better demand tell
+than headcount.
+
+### 10.10 A JS comment silently deleted every scan
+
+Payloads are collapsed to one line (`" ".join(expr.split())`) before AppleScript
+hands them to Chrome. A `//` comment added to `_JS_ACCOUNT` while writing §10.9
+therefore commented out **the entire rest of the payload**, including the closing
+braces. Every scan died on a syntax error.
+
+Fixed at the source: `_js()` strips `//` line comments before collapsing. The
+trap is invisible at the point of use — the comment looks fine in the file — and
+the next person to document a selector inline would hit it again.
