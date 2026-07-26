@@ -136,6 +136,9 @@ def main() -> int:
     ap.add_argument("--shelf", help="Notion Status to scan (Top Pursuit / Prospect)")
     ap.add_argument("--backfill", action="store_true",
                     help="rescan rows already flagged Need Warm Path Sync")
+    ap.add_argument("--refresh", action="store_true",
+                    help="re-scan rows already scanned, to pick up richer angles "
+                         "and rewrite the page-body Warm Paths section")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--min-fit", type=float, default=None,
                     help="skip below this Fit Score (sub-scale companies yield little)")
@@ -147,8 +150,8 @@ def main() -> int:
                     help="seconds between batches with --loop (session hygiene)")
     args = ap.parse_args()
 
-    if not args.shelf and not args.backfill:
-        ap.error("need --shelf or --backfill")
+    if not args.shelf and not args.backfill and not args.refresh:
+        ap.error("need --shelf, --backfill or --refresh")
     if not json.loads((ROOT.parent / "config" / "salesnav.json").read_text()).get("schemaReady"):
         print("salesnav.json schemaReady=false — Notion properties not confirmed. Aborting.")
         return 2
@@ -171,7 +174,15 @@ def run_batch(args, token, cap: int, exclude: set | None = None):
     The queue is re-pulled from Notion every call, so --loop naturally picks up
     rows that got flagged earlier in the same run.
     """
-    if args.backfill:
+    if args.refresh:
+        # Already-scanned rows only, and only where the id is already known — a
+        # refresh must never re-run company search, because that is where wrong
+        # identities enter. Anything without a cached id waits for a real scan.
+        known = load_ids()
+        rows = [r for r in (sn_notion.select("Prospect", unscanned_only=False, token=token)
+                            + sn_notion.select("Top Pursuit", unscanned_only=False, token=token))
+                if r["name"] in known]
+    elif args.backfill:
         rows = [r for r in sn_notion.select("Prospect", unscanned_only=False, token=token)
                 if r["needs_sync"]]
         rows += [r for r in sn_notion.select("Top Pursuit", unscanned_only=False, token=token)
