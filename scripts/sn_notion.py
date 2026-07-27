@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import date as calendar_date
 from pathlib import Path
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[1]
 CRM = Path.home() / "Projects" / "NormanAI-crm-core"
@@ -29,6 +31,9 @@ REG = json.loads((ROOT / "config" / "connections.json").read_text())
 PROPS = CONFIG["propertyMap"]
 DB = CONFIG["notionDatabaseId"]
 LEAD = "https://www.linkedin.com/sales/lead/"
+BODY_HEADING = "Warm Paths"
+BODY_START = "managed by sales-nav"
+BODY_END = "end of sales-nav managed section"
 
 
 def _names(tier):
@@ -151,14 +156,8 @@ def build_rows(people: list[dict]) -> tuple[list, list, bool]:
     return poc, conn, needs
 
 
-def read_existing(page_id: str, token: str) -> str:
-    pg = nc.notion("GET", f"https://api.notion.com/v1/pages/{page_id}", token=token)
-    return "".join(t["plain_text"] for t in
-                   (pg["properties"].get(PROPS["connectivity"]) or {}).get("rich_text", []))
-
-
 def write(page_id: str, people: list[dict], angles: list[str],
-          moves: list[str] | None = None, date: str = "2026-07-23",
+          moves: list[str] | None = None, date: str | None = None,
           token: str | None = None, thin: bool = False) -> bool | str:
     """Returns needs_sync, or the string 'degraded' if the write was REFUSED.
 
@@ -172,20 +171,21 @@ def write(page_id: str, people: list[dict], angles: list[str],
                   Otherwise the row is refused and re-queued on every loop pass,
                   forever, and the loop never drains.
     """
+    if thin:
+        # `thin` means the extractor never obtained a trustworthy answer. It is
+        # never safe to mark the row checked or replace any previously stored
+        # data, including a direct (1st-degree) path that lacks the text "via".
+        return "degraded"
     tok = token or nc.load_token()
     poc, conn, needs = build_rows(people)
+    date = date or calendar_date.today().isoformat()
 
     new_txt = "".join(s["text"]["content"] for s in conn)
     if "No warm path found" in new_txt:
-        if thin:
-            prev = read_existing(page_id, tok)
-            if "↳ via" in prev:
-                return "degraded"
-        else:
-            # A confirmed no-path is an ANSWER, not an open question. Leaving the
-            # flag on would re-queue this row on every loop pass and the loop
-            # would never drain. Re-checking later is the rescan cadence's job.
-            needs = False
+        # A confirmed no-path is an ANSWER, not an open question. Leaving the
+        # flag on would re-queue this row on every loop pass and the loop would
+        # never drain. Re-checking later is the rescan cadence's job.
+        needs = False
     props = {
         PROPS["workplacePoc"]: {"rich_text": poc[:100]},
         PROPS["connectivity"]: {"rich_text": conn[:100]},
@@ -210,6 +210,73 @@ def _bullet(rich):
             "bulleted_list_item": {"rich_text": rich}}
 
 
+def _block_text(block: dict) -> str:
+    rich = (block.get(block.get("type", "")) or {}).get("rich_text", [])
+    return "".join(t.get("plain_text", t.get("text", {}).get("content", "")) for t in rich)
+
+
+def _children(page_id: str, token: str) -> list[dict]:
+    """Read every top-level child, not just Notion's first 100-block page."""
+    out, cursor = [], None
+    while True:
+        url = f"https://api.notion.com/v1/blocks/{page_id}/children?page_size=100"
+        if cursor:
+            url += f"&start_cursor={quote(cursor, safe='')}"
+        res = nc.notion("GET", url, token=token)
+        out.extend(res.get("results", []))
+        if not res.get("has_more"):
+            return out
+        cursor = res.get("next_cursor")
+        if not cursor:
+            return out
+
+
+def _managed_span(kids: list[dict]) -> tuple[int, int] | None:
+    """Locate only blocks owned by this script; return inclusive indexes.
+
+    New sections carry an explicit end marker. Legacy sections did not, so their
+    generated bullet/summary shapes are recognised conservatively and scanning
+    stops at the first unrecognised block. This prevents a refresh from deleting
+    unrelated notes that happen to follow Warm Paths.
+    """
+    for heading_at, block in enumerate(kids):
+        if (block.get("type") != "heading_2"
+                or _block_text(block).strip() != BODY_HEADING):
+            continue
+        managed_at = heading_at + 1
+        if managed_at >= len(kids) or not _block_text(kids[managed_at]).startswith(BODY_START):
+            continue
+        start = (heading_at - 1
+                 if heading_at and kids[heading_at - 1].get("type") == "divider"
+                 else heading_at)
+        for end in range(managed_at + 1, len(kids)):
+            if _block_text(kids[end]).strip() == BODY_END:
+                return start, end
+
+        # Legacy migration: include only blocks whose exact shapes this writer
+        # emitted. A normal user paragraph or bullet terminates the managed span.
+        end = managed_at
+        for at in range(managed_at + 1, len(kids)):
+            kind = kids[at].get("type")
+            text = _block_text(kids[at])
+            generated_bullet = (
+                kind == "bulleted_list_item"
+                and (" — you're connected; go direct." in text
+                     or " — via " in text
+                     or " — no usable path" in text)
+            )
+            generated_summary = (
+                kind == "paragraph"
+                and (text.startswith("Watch list (no path yet): ")
+                     or text.startswith("No warm path at this scan."))
+            )
+            if not (generated_bullet or generated_summary):
+                break
+            end = at
+        return start, end
+    return None
+
+
 def write_body(page_id: str, people: list[dict], date: str, token: str) -> None:
     """Managed 'Warm Paths' section in the page body.
 
@@ -218,23 +285,18 @@ def write_body(page_id: str, people: list[dict], date: str, token: str) -> None:
     no detail layer at all while the hand-written ones had it. Rewrites only
     between its own markers; anything else on the page is never touched.
     """
-    kids = nc.notion("GET", f"https://api.notion.com/v1/blocks/{page_id}/children?page_size=100",
-                     token=token).get("results", [])
-    start = None
-    for i, b in enumerate(kids):
-        if b["type"] == "heading_2" and "Warm Paths" in "".join(
-                t["plain_text"] for t in b["heading_2"]["rich_text"]):
-            start = i - 1 if i and kids[i - 1]["type"] == "divider" else i
-            break
-    if start is not None:
-        for b in kids[start:]:
+    kids = _children(page_id, token)
+    span = _managed_span(kids)
+    if span is not None:
+        start, end = span
+        for b in kids[start:end + 1]:
             nc.notion("DELETE", f"https://api.notion.com/v1/blocks/{b['id']}", token=token)
 
     blocks = [
         {"object": "block", "type": "divider", "divider": {}},
         {"object": "block", "type": "heading_2",
-         "heading_2": {"rich_text": [seg("Warm Paths")]}},
-        _para([seg(f"managed by sales-nav · last scan {date}", italic=True, color="gray")]),
+         "heading_2": {"rich_text": [seg(BODY_HEADING)]}},
+        _para([seg(f"{BODY_START} · last scan {date}", italic=True, color="gray")]),
     ]
     reachable = [p for p in people if p.get("via") or p.get("degree") == "1st"]
     for p in reachable:
@@ -262,6 +324,7 @@ def write_body(page_id: str, people: list[dict], date: str, token: str) -> None:
     if not reachable:
         blocks.append(_para([seg("No warm path at this scan. Every persona match is "
                                  "3rd degree or shows no shared connections.")]))
+    blocks.append(_para([seg(BODY_END, italic=True, color="gray")]))
     nc.notion("PATCH", f"https://api.notion.com/v1/blocks/{page_id}/children",
               {"children": blocks}, token=token)
 
