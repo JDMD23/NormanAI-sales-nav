@@ -13,6 +13,7 @@ and flag Need Warm Path Sync. Never leave a dead path looking live.
 
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import os
 import sys
@@ -305,6 +306,11 @@ def write(page_id: str, people: list[dict], angles: list[str],
         # data, including a direct (1st-degree) path that lacks the text "via".
         return "degraded"
     tok = token or nc.load_token()
+    # Stamp the day the scan actually ran. This defaulted to a hardcoded
+    # "2026-07-23" and no caller ever overrode it, so every scanned row on the
+    # board carried that one date — no audit trail, and the rescan cadence in
+    # config/salesnav.json would read a frozen constant the moment it is built.
+    date = date or _dt.date.today().isoformat()
     poc, conn, needs = build_rows(people)
     date = date or calendar_date.today().isoformat()
 
