@@ -32,6 +32,20 @@ STATE = ROOT.parent / "state"
 IDMAP = STATE / "company_ids.json"
 
 
+def nonnegative_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be zero or greater")
+    return parsed
+
+
+def positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be greater than zero")
+    return parsed
+
+
 def load_ids() -> dict:
     try:
         return json.loads(IDMAP.read_text())
@@ -109,7 +123,11 @@ def growth_angle(acct: dict) -> str | None:
     except ValueError:
         return None
     tot = _people(acct.get("total"))
-    adds = int(tot * g6 / 100) if tot else 0
+    # Sales Nav reports growth relative to the earlier headcount, while `total`
+    # is the current headcount. Recover the prior value before calculating net
+    # adds; total*g/100 overstates growth and creates false positives at the
+    # 40-person threshold (500 current at +8% is ~37 adds, not 40).
+    adds = int(tot * g6 / (100 + g6)) if tot and g6 > -100 else 0
     if not (g6 >= 25 or (g6 >= 8 and adds >= 40)):
         return None
     who = f"{tot:,} people" if tot else "headcount"
@@ -201,6 +219,10 @@ def run_loop(args, run_batch) -> int:
             return 1
         for k in totals:
             totals[k] += res[k]
+        if res.get("budget_error"):
+            print("\nSTOPPED — daily scan safety ledger is unavailable; "
+                  "repair it before scanning again.")
+            return 1
         if res.get("capped"):
             print(f"\nSTOPPED — daily cap reached after {batch_no} batches. "
                   f"Rerun tomorrow; the queue rebuilds itself from Notion.")
@@ -236,22 +258,28 @@ def main() -> int:
     ap.add_argument("--refresh", action="store_true",
                     help="re-scan rows already scanned, to pick up richer angles "
                          "and rewrite the page-body Warm Paths section")
-    ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--limit", type=nonnegative_int, default=None)
     ap.add_argument("--min-fit", type=float, default=None,
                     help="skip below this Fit Score (sub-scale companies yield little)")
     ap.add_argument("--dry-run", action="store_true", help="scan and print, write nothing")
     ap.add_argument("--loop", action="store_true",
                     help="keep running batches until the queue drains")
-    ap.add_argument("--batch", type=int, default=15, help="companies per batch with --loop")
-    ap.add_argument("--rest", type=int, default=180,
+    ap.add_argument("--batch", type=positive_int, default=15,
+                    help="companies per batch with --loop")
+    ap.add_argument("--rest", type=nonnegative_int, default=180,
                     help="seconds between batches with --loop (session hygiene)")
     args = ap.parse_args()
     if args.batch > pace.batch_limit():
         print(f"--batch {args.batch} exceeds configured batchLimit "
               f"{pace.batch_limit()}; clamping.")
         args.batch = pace.batch_limit()
-    if args.limit is not None and args.limit > pace.remaining_today():
-        args.limit = pace.remaining_today()
+    try:
+        remaining = pace.remaining_today()
+    except pace.DailyLedgerError as exc:
+        print(f"daily scan safety ledger unavailable — {exc}. Aborting.")
+        return 2
+    if args.limit is not None and args.limit > remaining:
+        args.limit = remaining
 
     if not (args.shelf or args.backfill or args.refresh or args.unmapped):
         ap.error("need --shelf, --backfill, --refresh or --unmapped")
@@ -268,7 +296,7 @@ def main() -> int:
         return run_loop(args, lambda a, cap, exclude: run_batch(a, token, cap, exclude))
     res = run_batch(args, token,
                     args.limit if args.limit is not None else pace.batch_limit())
-    return 0 if res is not None else 1
+    return 0 if res is not None and not res.get("budget_error") else 1
 
 
 def run_batch(args, token, cap: int, exclude: set | None = None):
@@ -311,15 +339,18 @@ def run_batch(args, token, cap: int, exclude: set | None = None):
     for i, row in enumerate(rows, 1):
         name = row["name"]
         try:
-            pace.check_budget()
-        except pace.DailyCapReached as exc:
+            # Check and increment under one lock so two concurrent runners cannot
+            # both consume the final available slot.
+            pace.claim_scan()
+        except (pace.DailyCapReached, pace.DailyLedgerError) as exc:
             print(f"\nSTOPPING — {exc}")
             save_ids(ids)
             return {"ok": ok, "flagged": flagged, "parked": parked, "degraded": degraded,
-                    "queued": 0, "ids": {r["page_id"] for r in rows[:i - 1]}, "capped": True}
+                    "queued": 0, "ids": {r["page_id"] for r in rows[:i - 1]},
+                    "capped": isinstance(exc, pace.DailyCapReached),
+                    "budget_error": isinstance(exc, pace.DailyLedgerError)}
         print(f"[{i}/{len(rows)}] {name} (fit {row['fit']})  "
               f"[{pace.remaining_today()} left today]", flush=True)
-        pace.record_scan()
         try:
             acct = sn_extract.scan_company(name, ids.get(name))
         except chrome.DependencyError as exc:
@@ -331,10 +362,12 @@ def run_batch(args, token, cap: int, exclude: set | None = None):
             print(f"  parked — ambiguous name; paste the right id into "
                   f"state/company_ids.json. candidates: {cands}")
             parked += 1
+            pace.pause_between_companies()
             continue
         if acct.get("error") or not acct.get("people"):
             print("  parked — no Sales Nav match or no persona data")
             parked += 1
+            pace.pause_between_companies()
             continue
 
         ids[name] = acct["company_id"]

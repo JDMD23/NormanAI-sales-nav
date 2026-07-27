@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
+import os
 import random
+import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -53,41 +57,103 @@ def batch_limit() -> int:
 # enforced in code is not a cap.
 
 _LEDGER = ROOT / "state" / "daily_scans.json"
+_LEDGER_LOCK = ROOT / "state" / "daily_scans.lock"
 
 
 def _today() -> str:
     return time.strftime("%Y-%m-%d")
 
 
-def scans_today() -> int:
+class DailyCapReached(RuntimeError):
+    pass
+
+
+class DailyLedgerError(RuntimeError):
+    pass
+
+
+def _read_ledger() -> dict:
     try:
-        d = json.loads(_LEDGER.read_text())
-    except Exception:
-        return 0
-    return int(d.get(_today(), 0))
+        raw = _LEDGER.read_text()
+    except FileNotFoundError:
+        return {}
+    except OSError as exc:
+        raise DailyLedgerError(f"cannot read daily scan ledger: {exc}") from exc
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise DailyLedgerError(
+            "daily scan ledger is corrupt; refusing to reset the safety cap"
+        ) from exc
+    if not isinstance(data, dict):
+        raise DailyLedgerError("daily scan ledger must contain a JSON object")
+    return data
+
+
+def _count_today(data: dict) -> int:
+    try:
+        count = int(data.get(_today(), 0))
+    except (TypeError, ValueError) as exc:
+        raise DailyLedgerError("today's daily scan count is invalid") from exc
+    if count < 0:
+        raise DailyLedgerError("today's daily scan count cannot be negative")
+    return count
+
+
+@contextmanager
+def _locked_ledger():
+    _LEDGER_LOCK.parent.mkdir(parents=True, exist_ok=True)
+    with _LEDGER_LOCK.open("a+") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def _write_ledger(data: dict) -> None:
+    _LEDGER.parent.mkdir(parents=True, exist_ok=True)
+    tmp_name = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            dir=_LEDGER.parent,
+            prefix=f".{_LEDGER.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as tmp:
+            tmp_name = tmp.name
+            json.dump(data, tmp, indent=1, sort_keys=True)
+            tmp.write("\n")
+            tmp.flush()
+            os.fsync(tmp.fileno())
+        Path(tmp_name).replace(_LEDGER)
+    finally:
+        if tmp_name:
+            Path(tmp_name).unlink(missing_ok=True)
+
+
+def scans_today() -> int:
+    with _locked_ledger():
+        return _count_today(_read_ledger())
 
 
 def remaining_today() -> int:
     return max(0, int(load()["dailyCompanyCap"]) - scans_today())
 
 
-def record_scan() -> None:
-    try:
-        d = json.loads(_LEDGER.read_text())
-    except Exception:
-        d = {}
-    d = {k: v for k, v in d.items() if k >= _today()}   # keep today onward only
-    d[_today()] = d.get(_today(), 0) + 1
-    _LEDGER.parent.mkdir(parents=True, exist_ok=True)
-    _LEDGER.write_text(json.dumps(d, indent=1, sort_keys=True))
-
-
-class DailyCapReached(RuntimeError):
-    pass
-
-
-def check_budget() -> None:
-    if remaining_today() <= 0:
-        raise DailyCapReached(
-            f"daily cap of {load()['dailyCompanyCap']} companies reached "
-            f"({scans_today()} scanned today). Resumes tomorrow.")
+def claim_scan() -> int:
+    """Atomically reserve one company scan and return today's new total."""
+    with _locked_ledger():
+        data = _read_ledger()
+        count = _count_today(data)
+        cap = int(load()["dailyCompanyCap"])
+        if count >= cap:
+            raise DailyCapReached(
+                f"daily cap of {cap} companies reached "
+                f"({count} scanned today). Resumes tomorrow."
+            )
+        data = {k: v for k, v in data.items() if k >= _today()}
+        data[_today()] = count + 1
+        _write_ledger(data)
+        return count + 1

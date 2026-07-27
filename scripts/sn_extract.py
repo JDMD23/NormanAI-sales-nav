@@ -26,10 +26,12 @@ SALES = "https://www.linkedin.com/sales"
 _JS_SEARCH_RESULTS = """
 (()=>{const r=[];const seen=new Set();
 for(const a of document.querySelectorAll('a[href*="/sales/company/"]')){
- const n=a.innerText.trim().split('\\n')[0];if(!n||seen.has(n))continue;seen.add(n);
+ const n=a.innerText.trim().split('\\n')[0];
+ const id=a.getAttribute('href').split('?')[0].replace('/sales/company/','');
+ if(!n||!id||seen.has(id))continue;seen.add(id);
  const box=a.closest('li')||a.parentElement.parentElement.parentElement.parentElement;
  const t=(box?box.innerText:'').replace(/\\n+/g,' | ').slice(0,160);
- r.push({name:n,id:a.getAttribute('href').split('?')[0].replace('/sales/company/',''),blurb:t})}
+ r.push({name:n,id:id,blurb:t})}
 return JSON.stringify(r.slice(0,8))})()
 """
 
@@ -94,7 +96,13 @@ def _js(expr: str):
 def search_company(name: str) -> list[dict]:
     """Company search → candidate accounts. spellCorrection OFF (it silently
     redirects to the wrong company — verified trap)."""
-    q = quote(f'(spellCorrectionEnabled:false,keywords:"{name}")', safe='')
+    # Sales Nav's query grammar expects a quoted string. json.dumps supplies the
+    # escaping for company names containing quotes or backslashes; interpolating
+    # the name directly produces a malformed query and can redirect to bad hits.
+    q = quote(
+        f"(spellCorrectionEnabled:false,keywords:{json.dumps(name, ensure_ascii=False)})",
+        safe="",
+    )
     chrome.open_url(f"{SALES}/search/company?query={q}")
     pace.pause_navigation()
     chrome.assert_logged_in()
@@ -194,6 +202,7 @@ def read_tail(attempts: int = 3) -> dict:
         for frac in (0.4, 0.7, 0.9, 1.0):
             chrome.run_js(f"window.scrollTo(0,document.body.scrollHeight*{frac});'x'")
             pace.pause_navigation()
+        chrome.assert_logged_in()
         out = _js(_JS_TAIL) or {}
         if out.get("alerts") or out.get("g6"):
             return out
@@ -212,6 +221,9 @@ def mutual_names(lead_id: str) -> list[str]:
     )
     chrome.open_url(f"{SALES}/search/people?query={quote(inner, safe='')}")
     pace.pause_between_lead_pages()
+    # A session can expire after the account page was read. Without this check,
+    # the login page parses as an empty mutual list and good paths are erased.
+    chrome.assert_logged_in()
     return _js(_JS_NAMES) or []
 
 
@@ -266,8 +278,13 @@ def pick_match(name: str, hits: list[dict]) -> dict | None:
         return None  # genuinely ambiguous — needs a human
     # Prefix, not substring: "Sesame" must not match "Open Sesame AI" — leading
     # words change the entity. Trailing words usually don't ("Hex" / "Hex Inc").
-    pre = [h for h in hits
-           if _norm(h["name"]).startswith(want) or want.startswith(_norm(h["name"]))]
+    pre = []
+    for h in hits:
+        got = _norm(h["name"])
+        # Names made entirely of ignored words (for example "AI") normalise to
+        # "". Every string starts with "", so they must never become a match.
+        if got and (got.startswith(want) or want.startswith(got)):
+            pre.append(h)
     return pre[0] if len(pre) == 1 else None
 
 
@@ -290,8 +307,13 @@ def scan_company(name: str, company_id: str | None = None, max_targets: int = 6)
         company_id = match["id"]
 
     acct = read_account(company_id)
-    acct.update({k: v for k, v in read_tail().items() if v})
     acct["company_id"] = company_id
+    if acct.get("thin"):
+        # There is nothing safe to write, and the runner parks this result. Do
+        # not spend another dozen paced page reads harvesting angles that will
+        # necessarily be discarded.
+        return acct
+    acct.update({k: v for k, v in read_tail().items() if v})
     people = acct.get("people", [])
 
     # Resolve mutuals for the targets most likely to matter, highest count first.
