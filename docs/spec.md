@@ -1,7 +1,29 @@
 # Sales Nav Warm Path Engine — system brief
 
 Owner: JD. Engineer: Claude Code. Operator (downstream consumer): Norman.
-Date: 2026-07-23 (rev 2 — post-brainstorm).
+Date: 2026-08-12 (rev 3 — CRMx SoR / Warm Path supplement).
+
+## 0. Ownership (JD ruling, 2026-08)
+
+**NormanAI-CRMx is the sole system of record.** This repo is a Warm Path
+**SUPPLEMENT** only.
+
+| Surface | Owner | This repo |
+|---------|-------|-----------|
+| Cockpit Notion board `3b43930e-64f4-8136-a6ef-c8dfb4ac09a5` | NormanAI-CRMx | Read shelves; write Warm Path fields only |
+| Legacy crm-core Notion DB `3a33930e-64f4-8002-ac6b-f5f99d632099` | retired for writes | **Never write** (config + runtime refuse) |
+| `Status`, `Fit*`, JD human fields (`Relationship Notes`, `Current Angle`, `Last Touched`, `Re-check`) | CRMx / JD | **Never write** |
+| `Workplace POC`, `Connectivity`, `Angles`, `People Moves`, `Warm Path Checked At`, `Need Warm Path Sync` | this lane | Write (rich_text / rich_text / rich_text / rich_text / date / checkbox) |
+| Optional page body marker starting with `Warm Paths:` | this lane | Managed section only |
+
+Board id is configurable (`config/salesnav.json` → `notionDatabaseId`, override
+`SALESNAV_NOTION_DATABASE_ID`) and defaults to the CRMx cockpit. Warm Path
+properties must exist before first write — on the Mac run CRMx
+`sync_board_schema --apply`, then set `schemaReady: true`.
+
+No Fit scoring here. No overnight unattended Sales Nav. Attended Chrome/SN
+pacing + `dailyCompanyCap` stay enforced. Unknown ≠ 0 — never invent empty
+headcount or Fit.
 
 ## 1. What JD asked for (source of truth)
 
@@ -15,11 +37,11 @@ the angle.
 
 Decisions locked:
 
-- **Ingest:** browser scrape of JD's logged-in Chrome (AppleScript, same mechanism as crm-core's LinkedIn lane).
+- **Ingest:** browser scrape of JD's logged-in Chrome (AppleScript, same mechanism as the LinkedIn lane).
 - **Personas:** a single Sales Nav persona, **Workplace POC**, bundling decision-maker titles (`config/personas.json`; verify exact SN setup during the capture session).
-- **Destination:** company page in Norman CRM Core Notion DB. People stay company-scoped in v1; the SQLite store keeps the people graph so a dedicated People DB can be promoted in v2 without rework.
+- **Destination:** company page on the **NormanAI-CRMx cockpit** Notion board (sole SoR). People stay company-scoped in v1; the SQLite store keeps the people graph so a dedicated People DB can be promoted in v2 without rework. Legacy crm-core DB is not a write target.
 - **Apollo:** helper only — email pull for confirmed targets. Later phase.
-- Standing loop, JD-triggered; scheduling only with JD's explicit approval.
+- Standing loop, JD-triggered and **attended**; no overnight unattended SN. Scheduling only with JD's explicit approval.
 
 ## 2. Capabilities & phases
 
@@ -32,13 +54,13 @@ Decisions locked:
 | 2 | **Angles** — account alerts (news, hires, funding) harvested from the SN feed/list alert views | Confirmed in (JD). e.g. Omni $120M Series C. Written as angle entries; input for Norman's outreach drafting. |
 | 2 | **Digest** — per run: "N new warm paths, M new angles, new connectors to rate" | Likely the daily-use surface. |
 | — (skipped) | Draft-the-intro-ask | JD declined 2026-07-23. |
-| 3 (parked) | **Growth insights** — headcount distribution, new hires from SN growth tab | Field-ownership conflict: crm-core's LinkedIn lane owns headcount fields. Decide then: new SN-specific fields, or sales-nav feeds the existing lane. Do not double-own fields. |
+| 3 (parked) | **Growth insights** — headcount distribution, new hires from SN growth tab | Field-ownership conflict: CRMx owns Fit/headcount-style scoring fields. Do not double-own; this lane never invents empty headcount/Fit (Unknown ≠ 0). |
 
 ## 3. Objects
 
 | Object | Meaning |
 |--------|---------|
-| **Company** | A Norman CRM Core row. Join key: Notion page ID + LinkedIn company URL. |
+| **Company** | A NormanAI-CRMx cockpit row. Join key: Notion page ID + LinkedIn company URL. |
 | **SN account** | The company's Sales Navigator account page. |
 | **Persona target** | Person at the company matching Workplace POC. |
 | **Warm path** | JD → (mutual connection) → target. Degree 1: JD knows the target. Degree 2: the mutual is the angle. Degree 3: target recorded, "no path yet" — watch for one to form. |
@@ -54,7 +76,7 @@ Select (Notion shelves) → List sync (SN) → Account scan (Relationship Explor
 ```
 
 ### 4.1 Select
-Companies with Status ∈ {Top Pursuit, Prospect} (JD-only shelves — read, never written), plus `Need Warm Path Sync` ON as a manual queue. Batch caps from `config/pace.json`.
+Companies with Status ∈ {Top Pursuit, Prospect} on the CRMx board (JD shelves — **read only**, never written), plus `Need Warm Path Sync` ON as a manual queue. Batch caps from `config/pace.json`. Fit Score may be read for queue ordering / `--min-fit` only; unknown Fit is never treated as 0.
 
 ### 4.2 List sync
 Ensure each selected company is saved to its shelf's SN list (`salesNavLists` in config). Resolve company → SN account via LinkedIn URL, corroborate identity (website-first rule), save. Companies leaving the shelves get removed from lists on a later pass (not v1-blocking).
@@ -113,7 +135,7 @@ Marc Roth (COO): via Mike Ross, Sarah Lee
 Plus `Warm Path Checked At` (date) and `Need Warm Path Sync` (checkbox, lane queue).
 Page body: managed `Warm Paths` section — full table with SN links, first-seen dates, deltas on top.
 
-**Never writes Status. A failed scan writes nothing — never blanks previously written paths (Unknown ≠ 0).**
+**Never writes Status, Fit*, or JD human fields (`Relationship Notes`, `Current Angle`, `Last Touched`, `Re-check`).** A failed / thin scan writes nothing — never blanks previously written paths (Unknown ≠ 0). Runtime allowlist enforces Warm Path properties only.
 
 ### 4.6 Re-scan loop
 Cadence: Top Pursuit 7d, Prospect 14d (`rescanCadenceDays`). Deltas surface in the run digest (phase 2) and page-body section.
@@ -129,7 +151,10 @@ scans(id PK, company_id FK, at, outcome, note)
 
 Append-preserving (`active` flag, never delete): `first_seen` answers "when did this relationship become visible." Intro-node ranking is a query over `paths` grouped by `via_name`.
 
-## 6. Notion schema additions (one-time, on Norman CRM Core DB)
+## 6. Notion Warm Path properties (CRMx cockpit board)
+
+Target board: `3b43930e-64f4-8136-a6ef-c8dfb4ac09a5` (see NormanAI-CRMx
+`config/notion-board.json` / ADR 0017). Exact names + API types:
 
 | Property | Type | Who reads it |
 |----------|------|--------------|
@@ -140,7 +165,9 @@ Append-preserving (`active` flag, never delete): `first_seen` answers "when did 
 | `Warm Path Checked At` | date | machine |
 | `Need Warm Path Sync` | checkbox | machine (queue) |
 
-Additive only. Created via Notion API with JD's go-ahead, then `schemaReady: true`.
+Optional page body marker starting with `Warm Paths:`. Additive only — create
+via CRMx `sync_board_schema --apply` on the Mac, then set `schemaReady: true`.
+LinkedIn URL property on CRMx is `LinkedIn` (not legacy `Company Linkedin`).
 
 ## 7. Compliance & pacing posture
 
@@ -165,7 +192,7 @@ Additive only. Created via Notion API with JD's go-ahead, then `schemaReady: tru
 
 - No outbound. No new CRM. No full-pipeline crawls (Top Pursuit + Prospect + explicit queue only).
 - No scraping beyond what JD's session displays; no wholesale connection exports.
-- No headcount field writes until the phase-3 ownership decision (crm-core LinkedIn lane owns those today).
+- No headcount / Fit field writes (CRMx owns those). No overnight unattended Sales Nav.
 
 ## 10. Running it (built 2026-07-23)
 

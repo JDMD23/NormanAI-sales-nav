@@ -327,7 +327,9 @@ def run_batch(args, token, cap: int, exclude: set | None = None):
         rows = sn_notion.select(args.shelf, unscanned_only=True, token=token)
 
     if args.min_fit is not None:
-        rows = [r for r in rows if (r["fit"] or 0) >= args.min_fit]
+        # Unknown ≠ 0 — rows without a Fit Score cannot satisfy a numeric floor.
+        rows = [r for r in rows
+                if r["fit"] is not None and r["fit"] >= args.min_fit]
     if exclude:
         rows = [r for r in rows if r["page_id"] not in exclude]
     rows = rows[:cap]

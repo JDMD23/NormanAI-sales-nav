@@ -1,10 +1,12 @@
 {
-  "notionDatabaseId": "3a33930e-64f4-8002-ac6b-f5f99d632099",
-  "crmCoreConfigPath": "../NormanAI-crm-core/config/crm-core.json",
+  "notionDatabaseId": "3b43930e-64f4-8136-a6ef-c8dfb4ac09a5",
+  "crmxConfigPath": "../NormanAI-CRMx/config/notion-board.json",
+  "legacyCrmCoreDatabaseId": "3a33930e-64f4-8002-ac6b-f5f99d632099",
   "propertyMap": {
     "company": "Company",
-    "linkedinUrl": "Company Linkedin",
+    "linkedinUrl": "LinkedIn",
     "status": "Status",
+    "fitScore": "Fit Score",
     "workplacePoc": "Workplace POC",
     "connectivity": "Connectivity",
     "angles": "Angles",
@@ -12,6 +14,24 @@
     "warmPathCheckedAt": "Warm Path Checked At",
     "needWarmPathSync": "Need Warm Path Sync"
   },
+  "warmPathWriteKeys": [
+    "workplacePoc",
+    "connectivity",
+    "angles",
+    "peopleMoves",
+    "warmPathCheckedAt",
+    "needWarmPathSync"
+  ],
+  "forbiddenWriteProperties": [
+    "Status",
+    "Relationship Notes",
+    "Current Angle",
+    "Last Touched",
+    "Re-check"
+  ],
+  "forbiddenWritePrefixes": [
+    "Fit"
+  ],
   "pageBodyMarker": "Warm Paths",
   "salesNavLists": {
     "Top Pursuit": "Norman — Top Pursuits",
@@ -21,6 +41,6 @@
     "Top Pursuit": 7,
     "Prospect": 14
   },
-  "schemaReady": true,
-  "_note": "Five Warm Path properties verified on the CRM Core DB 2026-07-23 (created via Codex, types read back by Claude Code)."
+  "schemaReady": false,
+  "_note": "Warm Path SUPPLEMENT to NormanAI-CRMx (sole SoR). Default DB is CRMx cockpit 3b43930e-64f4-8136-a6ef-c8dfb4ac09a5. Override with SALESNAV_NOTION_DATABASE_ID. Never write Status, Fit*, or JD human fields. schemaReady stays false until CRMx sync_board_schema --apply creates the Warm Path properties on the Mac."
 }
