@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Warm Path Engine runner — scans companies and writes Notion, unattended.
+"""Warm Path Engine runner — attended Sales Nav scans + Warm Path Notion writeback.
 
     python3 scripts/sn_run.py --shelf "Top Pursuit"
     python3 scripts/sn_run.py --shelf Prospect --limit 15
@@ -7,8 +7,10 @@
     python3 scripts/sn_run.py --backfill          # rows flagged Need Warm Path Sync
     python3 scripts/sn_run.py --shelf Prospect --dry-run
 
-Requires JD's Chrome open and logged into Sales Navigator. Reads only; the sole
-UI write is the optional save-to-list. Stops immediately on an auth wall.
+Requires JD's Chrome open and logged into Sales Navigator. Attended runs only —
+no overnight freestyle / unattended SN. Reads only; the sole UI write is the
+optional save-to-list. Stops immediately on an auth wall. schemaReady must be
+true (after CRMx sync_board_schema --apply) before any Notion write.
 """
 
 from __future__ import annotations
@@ -284,7 +286,8 @@ def main() -> int:
     if not (args.shelf or args.backfill or args.refresh or args.unmapped):
         ap.error("need --shelf, --backfill, --refresh or --unmapped")
     if not json.loads((ROOT.parent / "config" / "salesnav.json").read_text()).get("schemaReady"):
-        print("salesnav.json schemaReady=false — Notion properties not confirmed. Aborting.")
+        print("salesnav.json schemaReady=false — Warm Path properties not confirmed "
+              "on CRMx cockpit (run sync_board_schema --apply on the Mac first). Aborting.")
         return 2
 
     try:
