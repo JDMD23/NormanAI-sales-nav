@@ -108,17 +108,60 @@ def warm_path_allowed_properties(props_map: dict | None = None) -> set[str]:
     return {mapping[k] for k in WARM_PATH_WRITE_KEYS if k in mapping}
 
 
+def _is_forbidden_property(name: str) -> bool:
+    return (name in FORBIDDEN_WRITE_PROPERTIES
+            or any(name.startswith(prefix) for prefix in FORBIDDEN_WRITE_PREFIXES))
+
+
+def assert_warm_path_config(props_map: dict | None = None) -> None:
+    """Fail closed if propertyMap would let Warm Path keys target Fit/Status/JD fields.
+
+    Dual-writer A20: CRMx owns Status + Fit*; this lane must never be able to
+    PATCH them even via a mis-mapped warmPathWriteKeys entry.
+    """
+    mapping = props_map or PROPS
+    for key in WARM_PATH_WRITE_KEYS:
+        name = mapping.get(key)
+        if not name:
+            continue
+        if _is_forbidden_property(name):
+            raise RuntimeError(
+                f"warmPathWriteKeys/{key} maps to owned-elsewhere field "
+                f"{name!r} — dual-writer refused (CRMx owns Status/Fit*/JD fields)")
+
+
+def assert_schema_ready(config: dict | None = None) -> None:
+    """Refuse writes until CRMx sync_board_schema --apply has been confirmed."""
+    cfg = config or CONFIG
+    if not cfg.get("schemaReady"):
+        raise RuntimeError(
+            "schemaReady=false — Warm Path properties not confirmed on the "
+            "CRMx cockpit board. On the Mac run NormanAI-CRMx "
+            "sync_board_schema --apply, verify property names/types, then set "
+            "schemaReady: true in config/salesnav.json")
+
+
 def assert_warm_path_write(props: dict) -> None:
     """Hard gate: only Warm Path fields may be PATCHed to Notion."""
+    assert_warm_path_config()
     allowed = warm_path_allowed_properties()
     for name in props:
-        if name in FORBIDDEN_WRITE_PROPERTIES or any(
-                name.startswith(prefix) for prefix in FORBIDDEN_WRITE_PREFIXES):
+        if _is_forbidden_property(name):
             raise ValueError(
                 f"refused Notion write of owned-elsewhere field: {name}")
         if name not in allowed:
             raise ValueError(
                 f"refused Notion write outside Warm Path allowlist: {name}")
+
+
+def patch_page_properties(page_id: str, props: dict, token: str) -> None:
+    """Single Notion page-property write path — allowlist + schemaReady required."""
+    assert_schema_ready()
+    assert_warm_path_write(props)
+    # Belt-and-braces: never target the retired crm-core DB even if config drifts.
+    resolve_database_id()
+    nc.notion("PATCH", f"https://api.notion.com/v1/pages/{page_id}",
+              {"properties": props}, token=token)
 
 
 def _names(tier):
@@ -280,11 +323,8 @@ def write(page_id: str, people: list[dict], angles: list[str],
     }
     if moves:
         props[PROPS["peopleMoves"]] = {"rich_text": [seg("\n".join(moves))]}
-    assert_warm_path_write(props)
-    # Belt-and-braces: never target the retired crm-core DB even if config drifts.
-    resolve_database_id()
-    nc.notion("PATCH", f"https://api.notion.com/v1/pages/{page_id}",
-              {"properties": props}, token=tok)
+    # Fail-closed: schemaReady + Warm Path allowlist (never Status / Fit* / JD fields).
+    patch_page_properties(page_id, props, tok)
     write_body(page_id, people, date, tok)
     return needs
 

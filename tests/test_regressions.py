@@ -107,6 +107,9 @@ class ExtractorRegressionTests(unittest.TestCase):
 class NotionRegressionTests(unittest.TestCase):
     def setUp(self):
         self.notion = load_sn_notion()
+        # Production config stays schemaReady=false until sync_board_schema;
+        # write-path tests opt into a ready schema explicitly.
+        self.notion.CONFIG = {**self.notion.CONFIG, "schemaReady": True}
 
     @staticmethod
     def person(**overrides):
@@ -177,6 +180,52 @@ class NotionRegressionTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, props)
 
+    def test_write_refuses_when_schema_not_ready(self):
+        self.notion.CONFIG = {**self.notion.CONFIG, "schemaReady": False}
+        with self.assertRaisesRegex(RuntimeError, "schemaReady=false"):
+            self.notion.write(
+                "page-id",
+                [self.person()],
+                ["Angle"],
+                token="token",
+            )
+        self.notion.nc.notion.assert_not_called()
+
+    def test_assert_warm_path_config_refuses_fit_status_collision(self):
+        with self.assertRaisesRegex(RuntimeError, "dual-writer"):
+            self.notion.assert_warm_path_config({
+                **self.notion.PROPS,
+                "workplacePoc": "Status",
+            })
+        with self.assertRaisesRegex(RuntimeError, "dual-writer"):
+            self.notion.assert_warm_path_config({
+                **self.notion.PROPS,
+                "connectivity": "Fit Score",
+            })
+        with self.assertRaisesRegex(RuntimeError, "dual-writer"):
+            self.notion.assert_warm_path_config({
+                **self.notion.PROPS,
+                "angles": "Fit Raw",
+            })
+        # Honest config (current propertyMap) must pass.
+        self.notion.assert_warm_path_config(self.notion.PROPS)
+
+    def test_patch_page_properties_is_only_guarded_write_path(self):
+        """Direct property PATCH must hit schemaReady + allowlist (A20)."""
+        with self.assertRaisesRegex(ValueError, "Fit Score"):
+            self.notion.patch_page_properties(
+                "page-id",
+                {"Fit Score": {"number": 12}},
+                token="token",
+            )
+        with self.assertRaisesRegex(ValueError, "Status"):
+            self.notion.patch_page_properties(
+                "page-id",
+                {"Status": {"select": {"name": "Prospect"}}},
+                token="token",
+            )
+        self.notion.nc.notion.assert_not_called()
+
     def test_assert_warm_path_write_refuses_status_and_fit(self):
         with self.assertRaisesRegex(ValueError, "Status"):
             self.notion.assert_warm_path_write({"Status": {"select": {"name": "Prospect"}}})
@@ -184,6 +233,8 @@ class NotionRegressionTests(unittest.TestCase):
             self.notion.assert_warm_path_write({"Fit Score": {"number": 90}})
         with self.assertRaisesRegex(ValueError, "Fit: Growth"):
             self.notion.assert_warm_path_write({"Fit: Growth": {"number": 1}})
+        with self.assertRaisesRegex(ValueError, "Fit Raw"):
+            self.notion.assert_warm_path_write({"Fit Raw": {"rich_text": []}})
         with self.assertRaisesRegex(ValueError, "Relationship Notes"):
             self.notion.assert_warm_path_write(
                 {"Relationship Notes": {"rich_text": []}})

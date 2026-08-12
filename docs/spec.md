@@ -196,7 +196,9 @@ LinkedIn URL property on CRMx is `LinkedIn` (not legacy `Company Linkedin`).
 
 ## 10. Running it (built 2026-07-23)
 
-The engine now runs unattended from the command line against JD's logged-in Chrome.
+The engine runs from the command line against JD's logged-in Chrome (**attended**
+only — no overnight freestyle / unattended SN). `schemaReady` must be true after
+CRMx `sync_board_schema --apply` before any Notion write.
 
 ```bash
 python3 scripts/sn_run.py --shelf "Top Pursuit"
@@ -229,10 +231,11 @@ richer Account IQ narrative still needs a human or a later pass.
 
 ### 10.1 Anti-erase guard (learned the hard way, 2026-07-23)
 
-The first unattended backfill run **overwrote verified paths with "no warm path
-found"** on Hex Technologies and Braintrust. Cause: the Relationship Explorer
-renders lazily, so `read_account` was reading the DOM before the persona cards
-(and their mutual chips) existed. Two fixes, both required:
+The first backfill run (2026-07-23, before the thin-scan guard) **overwrote
+verified paths with "no warm path found"** on Hex Technologies and Braintrust.
+Cause: the Relationship Explorer renders lazily, so `read_account` was reading
+the DOM before the persona cards (and their mutual chips) existed. Two fixes,
+both required:
 
 1. `read_account` now scrolls, waits, and retries up to 3× until the cards carry
    degree info — keeping the best result across attempts.

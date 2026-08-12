@@ -41,7 +41,7 @@ Writes **only**:
 
 ```text
 config/    personas, pacing, Notion writeback map (CRMx board id)
-docs/      spec.md — full system brief + ownership; ocr-review.md — OCR Action secrets/vars
+docs/      spec.md — system brief; honesty-audit-warm-path-2026-08-12.md — SoR / A20 audit; ocr-review.md
 scripts/   sn_run.py, sn_notion.py, sn_extract.py, lib/
 state/     SQLite path history + page captures (gitignored)
 ```
