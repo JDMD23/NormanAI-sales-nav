@@ -117,6 +117,8 @@ jobs:
           llm_auth_token: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
           llm_model: ${{ vars.OCR_LLM_MODEL }}
           llm_use_anthropic: ${{ vars.OCR_LLM_USE_ANTHROPIC }}
+          # Override action default thinking-disabled payload with an empty body.
+          llm_extra_body: '{}'
           # Trusted Warm Path rules from the base branch (not the PR head).
           rule: .opencodereview/rule.json
           background: >-
