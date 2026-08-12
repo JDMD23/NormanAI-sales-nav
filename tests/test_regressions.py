@@ -150,6 +150,85 @@ class NotionRegressionTests(unittest.TestCase):
         self.assertEqual(result, "degraded")
         self.notion.nc.notion.assert_not_called()
 
+    def test_write_allowlist_is_warm_path_fields_only(self):
+        self.notion.nc.notion.side_effect = [
+            {},
+            {"results": [], "has_more": False},
+            {},
+        ]
+        self.notion.write(
+            "page-id",
+            [self.person()],
+            ["Angle"],
+            moves=["HIRE · Someone"],
+            token="token",
+        )
+        props = self.notion.nc.notion.call_args_list[0].args[2]["properties"]
+        allowed = self.notion.warm_path_allowed_properties()
+        self.assertEqual(set(props), allowed)
+        for forbidden in (
+            "Status",
+            "Fit Score",
+            "Fit Raw",
+            "Relationship Notes",
+            "Current Angle",
+            "Last Touched",
+            "Re-check",
+        ):
+            self.assertNotIn(forbidden, props)
+
+    def test_assert_warm_path_write_refuses_status_and_fit(self):
+        with self.assertRaisesRegex(ValueError, "Status"):
+            self.notion.assert_warm_path_write({"Status": {"select": {"name": "Prospect"}}})
+        with self.assertRaisesRegex(ValueError, "Fit Score"):
+            self.notion.assert_warm_path_write({"Fit Score": {"number": 90}})
+        with self.assertRaisesRegex(ValueError, "Fit: Growth"):
+            self.notion.assert_warm_path_write({"Fit: Growth": {"number": 1}})
+        with self.assertRaisesRegex(ValueError, "Relationship Notes"):
+            self.notion.assert_warm_path_write(
+                {"Relationship Notes": {"rich_text": []}})
+        with self.assertRaisesRegex(ValueError, "Current Angle"):
+            self.notion.assert_warm_path_write({"Current Angle": {"rich_text": []}})
+        with self.assertRaisesRegex(ValueError, "Last Touched"):
+            self.notion.assert_warm_path_write(
+                {"Last Touched": {"date": {"start": "2026-08-12"}}})
+        with self.assertRaisesRegex(ValueError, "Re-check"):
+            self.notion.assert_warm_path_write({"Re-check": {"checkbox": True}})
+
+    def test_resolve_database_id_defaults_to_crmx_and_refuses_legacy(self):
+        self.assertEqual(
+            self.notion.resolve_database_id({"notionDatabaseId": self.notion.CRMX_DEFAULT_DB}),
+            self.notion.CRMX_DEFAULT_DB,
+        )
+        with self.assertRaisesRegex(RuntimeError, "legacy crm-core"):
+            self.notion.resolve_database_id({
+                "notionDatabaseId": self.notion.LEGACY_CRM_CORE_DB,
+                "legacyCrmCoreDatabaseId": self.notion.LEGACY_CRM_CORE_DB,
+            })
+        with mock.patch.dict(
+            "os.environ",
+            {"SALESNAV_NOTION_DATABASE_ID": self.notion.LEGACY_CRM_CORE_DB},
+            clear=False,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "legacy crm-core"):
+                self.notion.resolve_database_id({
+                    "notionDatabaseId": self.notion.CRMX_DEFAULT_DB,
+                    "legacyCrmCoreDatabaseId": self.notion.LEGACY_CRM_CORE_DB,
+                })
+
+    def test_config_targets_crmx_board_not_legacy_crm_core(self):
+        config = json.loads((ROOT / "config" / "salesnav.json").read_text())
+        self.assertEqual(
+            config["notionDatabaseId"],
+            "3b43930e-64f4-8136-a6ef-c8dfb4ac09a5",
+        )
+        self.assertNotEqual(
+            config["notionDatabaseId"],
+            config["legacyCrmCoreDatabaseId"],
+        )
+        self.assertEqual(config["propertyMap"]["linkedinUrl"], "LinkedIn")
+        self.assertFalse(config["schemaReady"])
+
     def test_body_refresh_paginates_and_preserves_following_user_notes(self):
         first_page = [rich_block("intro", "paragraph", "Intro")] * 100
         legacy = [
@@ -230,6 +309,43 @@ class RunnerRegressionTests(unittest.TestCase):
 
         self.assertEqual(result["parked"], 1)
         pause.assert_called_once_with()
+
+    def test_min_fit_does_not_treat_unknown_fit_as_zero(self):
+        rows = [
+            {"page_id": "known", "name": "Known", "fit": 90, "needs_sync": False},
+            {"page_id": "unknown", "name": "Unknown", "fit": None, "needs_sync": False},
+            {"page_id": "low", "name": "Low", "fit": 10, "needs_sync": False},
+        ]
+        args = SimpleNamespace(
+            unmapped=False,
+            refresh=False,
+            backfill=False,
+            shelf="Prospect",
+            min_fit=50,
+            dry_run=True,
+        )
+        with (
+            mock.patch.object(self.runner.sn_notion, "select", return_value=rows),
+            mock.patch.object(
+                self.runner.sn_extract,
+                "scan_company",
+                return_value={
+                    "company_id": "1",
+                    "people": [{
+                        "name": "A", "title": "CEO", "degree": "1st", "lead_id": "l",
+                    }],
+                },
+            ),
+            mock.patch.object(self.runner.pace, "claim_scan"),
+            mock.patch.object(self.runner.pace, "remaining_today", return_value=10),
+            mock.patch.object(self.runner.pace, "pause_between_companies"),
+            mock.patch.object(self.runner, "load_ids", return_value={}),
+            mock.patch.object(self.runner, "save_ids"),
+        ):
+            result = self.runner.run_batch(args, "token", cap=10)
+
+        self.assertEqual(result["ok"], 1)
+        self.assertEqual(result["queued"], 1)
 
     def test_cli_count_types_reject_negative_and_zero_bypasses(self):
         self.assertEqual(self.runner.nonnegative_int("0"), 0)

@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Notion writeback in format v3 — stacked Connectivity blocks.
 
+Warm Path SUPPLEMENT only. NormanAI-CRMx is the sole system of record; this
+lane reads shelves from the CRMx cockpit board and writes ONLY Warm Path
+fields. Never Status, Fit*, or JD human fields (Relationship Notes, Current
+Angle, Last Touched, Re-check).
+
 Applies the connection registry (core > inner ⭐ > ok > unrated > skip) and the
 hard rule: if skip-removal empties a target's mutual list, write `no usable path`
 and flag Need Warm Path Sync. Never leave a dead path looking live.
@@ -9,31 +14,111 @@ and flag Need Warm Path Sync. Never leave a dead path looking live.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from datetime import date as calendar_date
 from pathlib import Path
 from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[1]
-CRM = Path.home() / "Projects" / "NormanAI-crm-core"
 
-# crm-core ships its own `lib` package; load notion_client by path so it does not
-# collide with this repo's scripts/lib.
-import importlib.util as _ilu  # noqa: E402
-_spec = _ilu.spec_from_file_location(
-    "crmcore_notion_client", CRM / "scripts" / "lib" / "notion_client.py")
-nc = _ilu.module_from_spec(_spec)
-sys.modules["crmcore_notion_client"] = nc
-_spec.loader.exec_module(nc)
+
+def _load_notion_client():
+    """Load a sibling Notion HTTP helper without colliding with scripts/lib."""
+    import importlib.util as _ilu
+
+    env = os.environ.get("SALESNAV_NOTION_CLIENT")
+    candidates = []
+    if env:
+        candidates.append(Path(env))
+    home = Path.home() / "Projects"
+    candidates += [
+        home / "NormanAI-CRMx" / "scripts" / "lib" / "notion_client.py",
+        home / "NormanAI-crm-core" / "scripts" / "lib" / "notion_client.py",
+        ROOT.parent / "NormanAI-CRMx" / "scripts" / "lib" / "notion_client.py",
+        ROOT.parent / "NormanAI-crm-core" / "scripts" / "lib" / "notion_client.py",
+    ]
+    for path in candidates:
+        if path.is_file():
+            spec = _ilu.spec_from_file_location("crmcore_notion_client", path)
+            module = _ilu.module_from_spec(spec)
+            sys.modules["crmcore_notion_client"] = module
+            spec.loader.exec_module(module)
+            return module
+    # Tests patch this import path; keep a module shell so reload still works.
+    spec = _ilu.spec_from_file_location(
+        "crmcore_notion_client",
+        home / "NormanAI-crm-core" / "scripts" / "lib" / "notion_client.py")
+    module = _ilu.module_from_spec(spec)
+    sys.modules["crmcore_notion_client"] = module
+    if spec and spec.loader:
+        try:
+            spec.loader.exec_module(module)
+        except FileNotFoundError:
+            pass
+    return module
+
+
+nc = _load_notion_client()
 
 CONFIG = json.loads((ROOT / "config" / "salesnav.json").read_text())
 REG = json.loads((ROOT / "config" / "connections.json").read_text())
 PROPS = CONFIG["propertyMap"]
-DB = CONFIG["notionDatabaseId"]
+LEGACY_CRM_CORE_DB = CONFIG.get(
+    "legacyCrmCoreDatabaseId", "3a33930e-64f4-8002-ac6b-f5f99d632099")
+CRMX_DEFAULT_DB = "3b43930e-64f4-8136-a6ef-c8dfb4ac09a5"
+WARM_PATH_WRITE_KEYS = tuple(CONFIG.get("warmPathWriteKeys", (
+    "workplacePoc", "connectivity", "angles", "peopleMoves",
+    "warmPathCheckedAt", "needWarmPathSync",
+)))
+FORBIDDEN_WRITE_PROPERTIES = set(CONFIG.get("forbiddenWriteProperties", (
+    "Status", "Relationship Notes", "Current Angle", "Last Touched", "Re-check",
+)))
+FORBIDDEN_WRITE_PREFIXES = tuple(CONFIG.get("forbiddenWritePrefixes", ("Fit",)))
 LEAD = "https://www.linkedin.com/sales/lead/"
-BODY_HEADING = "Warm Paths"
+BODY_HEADING = CONFIG.get("pageBodyMarker", "Warm Paths")
 BODY_START = "managed by sales-nav"
 BODY_END = "end of sales-nav managed section"
+
+
+def _norm_id(value: str) -> str:
+    return value.replace("-", "").lower()
+
+
+def resolve_database_id(config: dict | None = None) -> str:
+    """Configurable CRMx board id. Env wins; legacy crm-core id is refused."""
+    cfg = config or CONFIG
+    raw = (os.environ.get("SALESNAV_NOTION_DATABASE_ID")
+           or cfg.get("notionDatabaseId")
+           or CRMX_DEFAULT_DB)
+    if _norm_id(raw) == _norm_id(cfg.get("legacyCrmCoreDatabaseId", LEGACY_CRM_CORE_DB)):
+        raise RuntimeError(
+            "refusing legacy crm-core Notion DB "
+            f"{cfg.get('legacyCrmCoreDatabaseId', LEGACY_CRM_CORE_DB)}; "
+            "NormanAI-CRMx is sole SoR — set notionDatabaseId / "
+            "SALESNAV_NOTION_DATABASE_ID to the CRMx cockpit board")
+    return raw
+
+
+DB = resolve_database_id()
+
+
+def warm_path_allowed_properties(props_map: dict | None = None) -> set[str]:
+    mapping = props_map or PROPS
+    return {mapping[k] for k in WARM_PATH_WRITE_KEYS if k in mapping}
+
+
+def assert_warm_path_write(props: dict) -> None:
+    """Hard gate: only Warm Path fields may be PATCHed to Notion."""
+    allowed = warm_path_allowed_properties()
+    for name in props:
+        if name in FORBIDDEN_WRITE_PROPERTIES or any(
+                name.startswith(prefix) for prefix in FORBIDDEN_WRITE_PREFIXES):
+            raise ValueError(
+                f"refused Notion write of owned-elsewhere field: {name}")
+        if name not in allowed:
+            raise ValueError(
+                f"refused Notion write outside Warm Path allowlist: {name}")
 
 
 def _names(tier):
@@ -195,6 +280,9 @@ def write(page_id: str, people: list[dict], angles: list[str],
     }
     if moves:
         props[PROPS["peopleMoves"]] = {"rich_text": [seg("\n".join(moves))]}
+    assert_warm_path_write(props)
+    # Belt-and-braces: never target the retired crm-core DB even if config drifts.
+    resolve_database_id()
     nc.notion("PATCH", f"https://api.notion.com/v1/pages/{page_id}",
               {"properties": props}, token=tok)
     write_body(page_id, people, date, tok)
@@ -240,8 +328,12 @@ def _managed_span(kids: list[dict]) -> tuple[int, int] | None:
     unrelated notes that happen to follow Warm Paths.
     """
     for heading_at, block in enumerate(kids):
+        heading = _block_text(block).strip()
+        # Exact marker, or optional "Warm Paths:" body marker from the CRMx ADR.
         if (block.get("type") != "heading_2"
-                or _block_text(block).strip() != BODY_HEADING):
+                or not (heading == BODY_HEADING
+                        or heading.startswith(BODY_HEADING + ":")
+                        or heading.startswith("Warm Paths:"))):
             continue
         managed_at = heading_at + 1
         if managed_at >= len(kids) or not _block_text(kids[managed_at]).startswith(BODY_START):
@@ -345,18 +437,23 @@ def select(status: str, unscanned_only: bool = True, token: str | None = None) -
             break
         cursor = res["next_cursor"]
 
+    fit_prop = PROPS.get("fitScore", "Fit Score")
     out = []
     for r in rows:
         p = r["properties"]
         done = bool((p.get(PROPS["warmPathCheckedAt"]) or {}).get("date"))
         if unscanned_only and done:
             continue
+        # Read Fit for queue ordering only — never invent 0 for unknown, and
+        # never write Fit* (CRMx owns scoring).
+        fit = (p.get(fit_prop) or {}).get("number")
         out.append({
             "page_id": r["id"],
             "name": "".join(t["plain_text"] for t in p[PROPS["company"]]["title"]),
-            "fit": (p.get("Fit Score") or {}).get("number"),
+            "fit": fit,
             "linkedin": (p.get(PROPS["linkedinUrl"]) or {}).get("url"),
             "needs_sync": bool((p.get(PROPS["needWarmPathSync"]) or {}).get("checkbox")),
         })
-    out.sort(key=lambda x: (x["fit"] is None, -(x["fit"] or 0)))
+    # Unknown fit sorts after known scores; do not coerce None → 0.
+    out.sort(key=lambda x: (x["fit"] is None, -(x["fit"] if x["fit"] is not None else 0)))
     return out
