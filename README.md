@@ -41,10 +41,12 @@ Writes **only**:
 
 ```text
 config/    personas, pacing, Notion writeback map (CRMx board id)
-docs/      spec.md — full system brief + ownership
+docs/      spec.md — full system brief + ownership; ocr-review.md — OCR Action secrets/vars
 scripts/   sn_run.py, sn_notion.py, sn_extract.py, lib/
 state/     SQLite path history + page captures (gitignored)
 ```
+
+PR reviews: Alibaba OpenCodeReview (`docs/ocr-review.md`).
 
 ## Migration (before first write)
 

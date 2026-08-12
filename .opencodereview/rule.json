@@ -1,0 +1,9 @@
+{
+  "rules": [
+    {
+      "path": "**/*.{py,json,yml,yaml,md}",
+      "merge_system_rule": true,
+      "rule": "Warm Path Engine discipline (NormanAI-sales-nav):\n1) Notion SoR is the CRMx cockpit database only — refuse legacy crm-core DB ids; do not invent alternate DBs.\n2) Write allowlist only: Workplace POC, Connectivity, Angles, People Moves, Warm Path Checked At, Need Warm Path Sync (and optional page-body Warm Paths section). Flag any PATCH/update that writes outside this allowlist.\n3) Never write Status, any Fit* property (Fit Score, Fit Raw, Fit: …), or JD human fields (Relationship Notes, Current Angle, Last Touched, Re-check).\n4) Attended Sales Navigator only: real Chrome session, pace/jitter from config/pace.json, enforce dailyCompanyCap; reject overnight freestyle / unattended SN automation.\n5) Unknown ≠ 0: failed or thin scans must write nothing and must not erase prior paths or coerce missing Fit to 0.\n6) Drafts/angles only — never send outbound email or messages from this repo."
+    }
+  ]
+}
