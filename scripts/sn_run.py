@@ -280,7 +280,7 @@ def main() -> int:
     except pace.DailyLedgerError as exc:
         print(f"daily scan safety ledger unavailable — {exc}. Aborting.")
         return 2
-    if args.limit is not None and args.limit > remaining:
+    if remaining is not None and args.limit is not None and args.limit > remaining:
         args.limit = remaining
 
     if not (args.shelf or args.backfill or args.refresh or args.unmapped):
@@ -354,8 +354,10 @@ def run_batch(args, token, cap: int, exclude: set | None = None):
                     "queued": 0, "ids": {r["page_id"] for r in rows[:i - 1]},
                     "capped": isinstance(exc, pace.DailyCapReached),
                     "budget_error": isinstance(exc, pace.DailyLedgerError)}
+        left = pace.remaining_today()
+        left_s = "unlimited" if left is None else f"{left} left today"
         print(f"[{i}/{len(rows)}] {name} (fit {row['fit']})  "
-              f"[{pace.remaining_today()} left today]", flush=True)
+              f"[{left_s}]", flush=True)
         try:
             acct = sn_extract.scan_company(name, ids.get(name))
         except chrome.DependencyError as exc:

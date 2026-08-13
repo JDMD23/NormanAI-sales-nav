@@ -7,6 +7,6 @@
     "betweenLeadPagesMinSeconds": 8.0,
     "betweenLeadPagesJitterSeconds": 7.0,
     "batchLimit": 8,
-    "dailyCompanyCap": 25
+    "dailyCompanyCap": null
   }
 }

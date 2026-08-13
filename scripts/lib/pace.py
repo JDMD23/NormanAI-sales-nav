@@ -138,17 +138,32 @@ def scans_today() -> int:
         return _count_today(_read_ledger())
 
 
-def remaining_today() -> int:
-    return max(0, int(load()["dailyCompanyCap"]) - scans_today())
+def daily_cap() -> int | None:
+    """None = unlimited. Human nav pauses are the throttle (JD 2026-08-12)."""
+    raw = load().get("dailyCompanyCap", None)
+    if raw is None:
+        return None
+    return int(raw)
+
+
+def remaining_today() -> int | None:
+    """None = unlimited remaining."""
+    cap = daily_cap()
+    if cap is None:
+        return None
+    return max(0, cap - scans_today())
 
 
 def claim_scan() -> int:
-    """Atomically reserve one company scan and return today's new total."""
+    """Atomically reserve one company scan and return today's new total.
+
+    dailyCompanyCap None = unlimited (JD 2026-08-12); still records the scan.
+    """
     with _locked_ledger():
         data = _read_ledger()
         count = _count_today(data)
-        cap = int(load()["dailyCompanyCap"])
-        if count >= cap:
+        cap = daily_cap()
+        if cap is not None and count >= cap:
             raise DailyCapReached(
                 f"daily cap of {cap} companies reached "
                 f"({count} scanned today). Resumes tomorrow."
@@ -157,3 +172,13 @@ def claim_scan() -> int:
         data[_today()] = count + 1
         _write_ledger(data)
         return count + 1
+
+
+def check_budget() -> None:
+    left = remaining_today()
+    if left is None:
+        return
+    if left <= 0:
+        raise DailyCapReached(
+            f"daily cap of {daily_cap()} companies reached "
+            f"({scans_today()} scanned today). Resumes tomorrow.")
